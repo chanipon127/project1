@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ตั้งค่าระบบ</title>
+  <style>
+    body {
+      font-family: 'Prompt', sans-serif;
+      margin: 0;
+      background: #f0f2f5;
+    }
+
+    /* Wrapper สำหรับจัดวาง sidebar และ content */
+    .wrapper {
+      display: flex;
+      min-height: 100vh;
+    }
+
+    /* Sidebar สำหรับเมนู */
+    .sidebar {
+      width: 220px;
+      background: #333;
+      color: white;
+      padding: 20px;
+      position: fixed;
+      height: 100%;
+      top: 0;
+      left: 0;
+      transition: 0.3s ease;
+    }
+
+    .sidebar h2 {
+      font-size: 20px;
+      margin-bottom: 20px;
+    }
+
+    .sidebar a {
+      display: block;
+      color: white;
+      text-decoration: none;
+      margin-bottom: 10px;
+      padding: 10px;
+      background: #444;
+      border-radius: 5px;
+    }
+
+    .sidebar a:hover {
+      background: #555;
+    }
+
+    /* Main content area */
+    .main-content {
+      margin-left: 240px;
+      flex: 1;
+      padding: 20px;
+    }
+
+    /* Navbar สำหรับหัวข้อ */
+    .navbar {
+      background-color: #3b5bdb;
+      color: white;
+      padding: 15px 30px;
+      font-size: 20px;
+      font-weight: bold;
+    }
+
+    /* Tabs สำหรับการเลือกหมวด */
+    .tabs {
+      display: flex;
+      background: #ddd;
+      overflow-x: auto;
+    }
+
+    .tab {
+      padding: 14px 20px;
+      cursor: pointer;
+      flex-shrink: 0;
+      background: #ccc;
+      border-right: 1px solid #bbb;
+      transition: 0.3s;
+    }
+
+    .tab:hover {
+      background: #bbb;
+    }
+
+    .tab.active {
+      background: white;
+      font-weight: bold;
+      border-bottom: 3px solid #3b5bdb;
+    }
+
+    /* Tab content */
+    .tab-content {
+      padding: 20px;
+      display: none;
+      background: white;
+    }
+
+    .tab-content.active {
+      display: block;
+    }
+
+    form label {
+      display: block;
+      margin: 15px 0 5px;
+    }
+
+    input, select {
+      width: 300px;
+      padding: 8px;
+      margin-top: 5px;
+    }
+
+    button {
+      margin-top: 20px;
+      padding: 10px 20px;
+      background: #3b5bdb;
+      color: white;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+
+    button:hover {
+      background: #2f44a1;
+    }
+
+    /* Mobile responsiveness */
+    @media (max-width: 768px) {
+      .wrapper {
+        flex-direction: column;
+      }
+
+      .sidebar {
+        width: 100%;
+        position: relative;
+        height: auto;
+      }
+
+      .main-content {
+        margin-left: 0;
+      }
+
+      .tabs {
+        display: block;
+      }
+
+      .tab {
+        display: inline-block;
+        margin: 5px 0;
+        width: 100%;
+      }
+    }
+  </style>
+</head>
+<body>
+
+<div class="wrapper">
+  <!-- Sidebar Menu -->
+  <nav class="sidebar">
+    <h2>เมนู</h2>
+    <a href="manage_user.html" title="จัดการผู้ใช้งาน">จัดการผู้ใช้งาน</a>
+    <a href="manage_exams.html" title="จัดการข้อสอบ">จัดการข้อสอบ</a>
+    <a href="maxmin_scores.html" title="ดูคะแนนสูงสุด-ต่ำสุด">ดูคะแนนสูงสุด-ต่ำสุด</a>
+    <a href="settings.html" title="ตั้งค่าระบบ">ตั้งค่าระบบ</a>
+  </nav>
+
+  <!-- Main Content -->
+  <div class="main-content">
+    <div class="navbar">ตั้งค่าระบบสำหรับแอดมิน</div>
+
+    <!-- Tab Navigation -->
+    <div class="tabs">
+      <div class="tab active" onclick="openTab('exam-settings')">ตั้งค่าการสอบ</div>
+      <div class="tab" onclick="openTab('score-settings')">ตั้งค่าคะแนน</div>
+      <div class="tab" onclick="openTab('user-settings')">ตั้งค่าผู้ใช้งาน</div>
+      <div class="tab" onclick="openTab('site-settings')">ตั้งค่าเว็บไซต์</div>
+    </div>
+
+    <!-- Tab Content -->
+    <div id="exam-settings" class="tab-content active">
+      <h2>ตั้งค่าการสอบ</h2>
+      <form>
+        <label>เวลาสอบต่อข้อ (วินาที)</label>
+        <input type="number" name="time_per_question" value="60">
+
+        <label>เวลาสอบรวม (นาที)</label>
+        <input type="number" name="total_exam_time" value="60">
+
+        <label>จำนวนครั้งที่สอบได้</label>
+        <input type="number" name="max_attempts" value="3">
+
+        <button type="submit">บันทึกการตั้งค่า</button>
+      </form>
+    </div>
+
+    <div id="score-settings" class="tab-content">
+      <h2>ตั้งค่าคะแนน</h2>
+      <form>
+        <label>รูปแบบคะแนน</label>
+        <select name="score_format">
+          <option value="percentage">เปอร์เซ็นต์</option>
+          <option value="points">คะแนนเต็ม</option>
+        </select>
+
+        <label>คะแนนผ่านขั้นต่ำ (%)</label>
+        <input type="number" name="passing_score" value="60">
+
+        <button type="submit">บันทึกการตั้งค่า</button>
+      </form>
+    </div>
+
+    <div id="user-settings" class="tab-content">
+        <h2>ตั้งค่าผู้ใช้งาน</h2>
+        <form>
+          <label>อนุญาตให้สมัครสมาชิกเอง</label>
+          <select name="allow_registration">
+            <option value="yes">อนุญาต</option>
+            <option value="no">ไม่อนุญาต</option>
+          </select>
+          <label>กำหนดบทบาทเริ่มต้นผู้ใช้ใหม่</label>
+    <select name="default_role">
+      <option value="Examiner">ผู้ตรวจข้อสอบ</option>
+      <option value="Admin">แอดมิน</option>
+    </select>
+
+    <button type="submit">บันทึกการตั้งค่า</button>
+  </form>
+</div>
+
+<div id="site-settings" class="tab-content">
+    <h2>ตั้งค่าเว็บไซต์</h2>
+    <form>
+      <label>ชื่อเว็บไซต์</label>
+      <input type="text" name="site_title" value="ระบบตรวจข้อสอบอัตนัยด้วย AI">
+  
+      <label>ภาษาเว็บไซต์</label>
+      <select name="site_language">
+        <option value="th">ไทย</option>
+        <option value="en">English</option>
+      </select>
+  
+      <button type="submit">บันทึกการตั้งค่า</button>
+    </form>
+  </div>
+  </div>
+</div>
+
+<script>
+function openTab(tabId) {
+  const tabs = document.querySelectorAll('.tab');
+  const contents = document.querySelectorAll('.tab-content');
+
+  tabs.forEach(tab => {
+    tab.classList.remove('active');
+  });
+
+  contents.forEach(content => {
+    content.classList.remove('active');
+  });
+
+  document.querySelector('.tab[onclick="openTab(\'' + tabId + '\')"]').classList.add('active');
+  document.getElementById(tabId).classList.add('active');
+}
+</script>
+
+</body>
+</html>

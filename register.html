@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <title>ลงทะเบียน</title>
+    <style>
+        body {
+            font-family: 'Arial', sans-serif;
+            background-color: #f5f7fa;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+        }
+        .container {
+            display: flex;
+            background: white;
+            box-shadow: 0 0 15px rgba(0,0,0,0.1);
+            border-radius: 15px;
+            padding: 40px;
+            gap: 40px;
+        }
+        .form-box {
+            width: 320px;
+        }
+        h2 {
+            margin-bottom: 20px;
+            color: #2a4d8c;
+        }
+        input, select {
+            width: 100%;
+            padding: 10px;
+            margin: 10px 0 20px;
+            border: 1px solid #ccc;
+            border-radius: 8px;
+        }
+        input[type="submit"] {
+            background-color: #3b5bdb;
+            color: white;
+            border: none;
+            padding: 12px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+        input[type="submit"]:hover {
+            background-color: #2f4caa;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="form-box">
+            <h2>ลงทะเบียนผู้ใช้</h2>
+            <form action="register.php" method="POST">
+                <label>เลือกสิทธิ์ผู้ใช้งาน</label>
+                <select name="role" required>
+                    <option value="">-- เลือกสิทธิ์ผู้ใช้งาน --</option>
+                    <option value="teacher">ผู้ตรวจข้อสอบ</option>
+                    <option value="admin">แอดมิน</option>
+                </select>   
+
+                <label>ชื่อผู้ใช้</label>
+                <input type="text" name="username" required>
+
+                <label>อีเมล</label>
+                <input type="email" name="email" required>
+
+                <label>รหัสผ่าน</label>
+                <input type="password" name="password" required>             
+
+                <input type="submit" value="สมัครสมาชิก">
+            </form>
+        </div>
+    </div>
+</body>
+</html>

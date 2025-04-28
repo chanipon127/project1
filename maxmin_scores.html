@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ดูคะแนนสูงสุด-ต่ำสุด</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 0; display: flex; }
+    .sidebar {
+      width: 220px;
+      background: #333;
+      color: #fff;
+      min-height: 100vh;
+      padding: 20px;
+    }
+    .sidebar h2 { font-size: 20px; margin-bottom: 20px; }
+    .sidebar a {
+      display: block;
+      color: #fff;
+      text-decoration: none;
+      margin-bottom: 10px;
+      padding: 10px;
+      background: #444;
+      border-radius: 5px;
+    }
+    .sidebar a:hover { background: #555; }
+
+    .content {
+      flex: 1;
+      padding: 20px;
+    }
+
+    table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+    th, td { border: 1px solid #ccc; padding: 10px; text-align: center; }
+    th { background-color: #f9f9f9; }
+    @media (max-width: 768px) {
+      .sidebar { width: 100px; }
+      .sidebar h2 { font-size: 16px; }
+      .sidebar a { font-size: 14px; padding: 5px; }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="sidebar">
+    <h2>เมนู</h2>
+    <a href="manage_user.html" title="จัดการผู้ใช้งาน">จัดการผู้ใช้งาน</a>
+    <a href="manage_exams.html" title="จัดการข้อสอบ">จัดการข้อสอบ</a>
+    <a href="maxmin_scores.html" title="ดูคะแนนสูงสุด-ต่ำสุด">ดูคะแนนสูงสุด-ต่ำสุด</a>
+    <a href="settings.html" title="ตั้งค่าระบบ">ตั้งค่าระบบ</a>
+  </div>
+
+  <div class="content">
+    <h1>ดูคะแนนสูงสุด-ต่ำสุด</h1>
+
+    <table>
+      <thead>
+        <tr>
+          <th>ชื่อข้อสอบ</th>
+          <th>คะแนนสูงสุด</th>
+          <th>คะแนนต่ำสุด</th>
+          <th>คะแนนเฉลี่ย</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>ข้อสอบภาษาไทย ป.6</td>
+          <td>95</td>
+          <td>50</td>
+          <td>72</td>
+        </tr>
+        <tr>
+          <td>ข้อสอบภาษาไทย ม.3</td>
+          <td>90</td>
+          <td>45</td>
+          <td>68</td>
+        </tr>
+      </tbody>
+    </table>
+
+  </div>
+
+</body>
+</html>

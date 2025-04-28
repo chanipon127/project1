@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>จัดการข้อสอบภาษาไทย</title>
+  <!-- ใช้ฟอนต์ Sarabun -->
+  <link href="https://fonts.googleapis.com/css2?family=Sarabun&display=swap" rel="stylesheet">
+  <style>
+    body { 
+      font-family: 'Sarabun', Arial, sans-serif; 
+      margin: 0; 
+      display: flex; 
+    }
+    nav.sidebar {
+      width: 220px;
+      background: #333;
+      color: #fff;
+      min-height: 100vh;
+      padding: 20px;
+    }
+    nav.sidebar h2 { font-size: 20px; margin-bottom: 20px; }
+    nav.sidebar a {
+      display: block;
+      color: #fff;
+      text-decoration: none;
+      margin-bottom: 10px;
+      padding: 10px;
+      background: #444;
+      border-radius: 5px;
+    }
+    nav.sidebar a:hover { background: #555; }
+
+    main.content {
+      flex: 1;
+      padding: 20px;
+    }
+
+    table { 
+      width: 100%; 
+      border-collapse: collapse; 
+      margin-top: 20px; 
+    }
+    th, td { 
+      border: 1px solid #ccc; 
+      padding: 10px; 
+      text-align: left; 
+    }
+    th { 
+      background-color: #f2f2f2; 
+    }
+    .btn-edit {
+      background-color: #4CAF50;
+      color: white;
+      border: none;
+      padding: 5px 10px;
+      border-radius: 3px;
+      cursor: pointer;
+    }
+    .btn-delete {
+      background-color: #f44336;
+      color: white;
+      border: none;
+      padding: 5px 10px;
+      border-radius: 3px;
+      cursor: pointer;
+    }
+    button:hover {
+      opacity: 0.8;
+    }
+    @media (max-width: 768px) {
+      nav.sidebar { width: 100px; }
+      nav.sidebar h2 { font-size: 16px; }
+      nav.sidebar a { font-size: 14px; padding: 5px; }
+    }
+  </style>
+</head>
+<body>
+
+  <nav class="sidebar">
+    <h2>เมนู</h2>
+    <a href="manage_user.html" title="จัดการผู้ใช้งาน">จัดการผู้ใช้งาน</a>
+    <a href="manage_exams.html" title="จัดการข้อสอบ">จัดการข้อสอบ</a>
+    <a href="maxmin_scores.html" title="ดูคะแนนสูงสุด-ต่ำสุด">ดูคะแนนสูงสุด-ต่ำสุด</a>
+    <a href="settings.html" title="ตั้งค่าระบบ">ตั้งค่าระบบ</a>
+  </nav>
+
+  <main class="content">
+    <h1>จัดการข้อสอบวิชาภาษาไทย</h1>
+    <button onclick="location.href='create-exam.html'" style="background-color: #2196F3; color: white; border: none; padding: 10px 15px; border-radius: 5px; margin-bottom: 20px;">+ สร้างข้อสอบใหม่</button>
+
+    <table>
+      <thead>
+        <tr>
+          <th>ชื่อข้อสอบ</th>
+          <th>จำนวนข้อ</th>
+          <th>สถานะ</th>
+          <th>ปีการศึกษา</th>
+          <th>การดำเนินการ</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>ข้อสอบภาษาไทย ชั้นประถมศึกษาปีที่ 6</td>
+          <td>40</td>
+          <td>เผยแพร่แล้ว</td>
+          <td>2567</td>
+          <td>
+            <button class="btn-edit" title="แก้ไขข้อสอบนี้">แก้ไข</button>
+            <button class="btn-delete" title="ลบข้อสอบนี้" onclick="confirmDelete()">ลบ</button>
+          </td>
+        </tr>
+        <tr>
+          <td>ข้อสอบภาษาไทย ชั้นมัธยมศึกษาปีที่ 3</td>
+          <td>50</td>
+          <td>ร่าง</td>
+          <td>2568</td>
+          <td>
+            <button class="btn-edit" title="แก้ไขข้อสอบนี้">แก้ไข</button>
+            <button class="btn-delete" title="ลบข้อสอบนี้" onclick="confirmDelete()">ลบ</button>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </main>
+
+  <script>
+    function confirmDelete() {
+      if (confirm('คุณแน่ใจว่าต้องการลบข้อสอบนี้?')) {
+        alert('ลบเรียบร้อย');
+        // ตรงนี้ในระบบจริง ควรเรียกฟังก์ชันลบจริง ๆ เช่น ผ่าน API
+      }
+    }
+  </script>
+
+</body>
+</html>

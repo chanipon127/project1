@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <title>หน้าหลัก - ระบบตรวจข้อสอบอัตนัยด้วยปัญญาประดิษฐ์</title>
+    <style>
+        body {
+            font-family: 'Prompt', sans-serif;
+            margin: 0;
+            background: #f0f2f5;
+            text-align: center;
+        }
+
+        .navbar {
+            background-color: #3b5bdb;
+            padding: 15px 30px;
+            color: white;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .navbar .logo {
+            font-size: 20px;
+            font-weight: bold;
+        }
+
+        .navbar a {
+            color: white;
+            text-decoration: none;
+            font-weight: bold;
+        }
+
+        .content {
+            padding: 50px 20px;
+        }
+
+        h1 {
+            color: #2a2a2a;
+            margin-bottom: 40px;
+        }
+
+        .image-container {
+            display: flex;
+            justify-content: center;
+            flex-wrap: wrap;
+            gap: 20px;
+        }
+
+        .image-item {
+            text-align: center;
+        }
+
+        .image-item img {
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            margin-bottom: 10px;
+            transition: transform 0.2s ease;
+        }
+
+        .image-item:hover img {
+            transform: scale(1.1);
+        }
+
+        .logout {
+            margin-top: 50px;
+        }
+
+        .logout a {
+            text-decoration: none;
+            color: #555;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <div class="navbar">
+        <div class="logo">ระบบตรวจข้อสอบ AI</div>
+        <div>
+            สวัสดี, <?php echo htmlspecialchars($username); ?> |
+            <a href="logout.php">ออกจากระบบ</a>
+        </div>
+    </div>
+
+    <div class="content">
+        <h1>เมนูสำหรับแอดมิน</h1>
+
+        <div class="image-container">
+            <div class="image-item">
+                <a href="manage_users.html">
+                    <img src="images/manage_users.png" alt="จัดการผู้ใช้งาน">
+                </a>
+                <div>จัดการผู้ใช้งาน</div>
+            </div>
+            <div class="image-item">
+                <a href="maxmin_scores.html">
+                    <img src="images/view_reports.png" alt="ดูคะแนนสูงสุด-ต่ำสุด">
+                </a>
+                <div>ดูคะแนนสูงสุด-ต่ำสุด</div>
+            </div>
+            <div class="image-item">
+                <a href="manage_exams.html">
+                    <img src="images/manage_exams.png" alt="จัดการข้อสอบ">
+                </a>
+                <div>จัดการข้อสอบ</div>
+            </div>
+            <div class="image-item">
+                <a href="settings.html">
+                    <img src="images/settings.png" alt="ตั้งค่าระบบ">
+                </a>
+                <div>ตั้งค่าระบบ</div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
