@@ -3,12 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <title>หน้าหลัก - ระบบตรวจข้อสอบอัตนัยด้วยปัญญาประดิษฐ์</title>
+    <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@400;600&display=swap" rel="stylesheet">
     <style>
         body {
             font-family: 'Prompt', sans-serif;
             margin: 0;
-            background: #f0f2f5;
-            text-align: center;
+            background: #eef2f7;
+            color: #333;
         }
 
         .navbar {
@@ -18,10 +19,11 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
         }
 
-        .navbar .logo {
-            font-size: 20px;
+        .logo {
+            font-size: 22px;
             font-weight: bold;
         }
 
@@ -29,52 +31,74 @@
             color: white;
             text-decoration: none;
             font-weight: bold;
+            margin-left: 15px;
+            background: #5c7cfa;
+            padding: 8px 12px;
+            border-radius: 6px;
+            transition: background 0.3s ease;
+        }
+
+        .navbar a:hover {
+            background: #748ffc;
         }
 
         .content {
-            padding: 50px 20px;
+            padding: 60px 20px;
+            text-align: center;
         }
 
         h1 {
             color: #2a2a2a;
-            margin-bottom: 40px;
+            margin-bottom: 50px;
+            font-size: 2rem;
         }
 
         .image-container {
             display: flex;
             justify-content: center;
             flex-wrap: wrap;
-            gap: 20px;
+            gap: 30px;
         }
 
         .image-item {
-            text-align: center;
+            background: white;
+            padding: 20px;
+            border-radius: 16px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+            width: 220px;
+        }
+
+        .image-item:hover {
+            transform: translateY(-10px);
+            box-shadow: 0 8px 20px rgba(0,0,0,0.2);
         }
 
         .image-item img {
-            width: 80px;
-            height: 80px;
+            width: 150px;
+            height: 150px;
             border-radius: 50%;
-            margin-bottom: 10px;
-            transition: transform 0.2s ease;
+            object-fit: cover;
+            margin-bottom: 20px;
+            transition: transform 0.3s ease;
         }
 
-        .image-item:hover img {
-            transform: scale(1.1);
-        }
-
-        .logout {
-            margin-top: 50px;
-        }
-
-        .logout a {
-            text-decoration: none;
-            color: #555;
+        .image-item div {
             font-weight: bold;
+            font-size: 1.1rem;
+            color: #444;
+        }
+
+        @media (max-width: 768px) {
+            .image-container {
+                flex-direction: column;
+                align-items: center;
+            }
         }
     </style>
 </head>
 <body>
+
     <div class="navbar">
         <div class="logo">ระบบตรวจข้อสอบ AI</div>
         <div>
@@ -93,18 +117,21 @@
                 </a>
                 <div>จัดการผู้ใช้งาน</div>
             </div>
+
             <div class="image-item">
                 <a href="maxmin_scores.html">
                     <img src="images/view_reports.png" alt="ดูคะแนนสูงสุด-ต่ำสุด">
                 </a>
                 <div>ดูคะแนนสูงสุด-ต่ำสุด</div>
             </div>
+
             <div class="image-item">
                 <a href="manage_exams.html">
                     <img src="images/manage_exams.png" alt="จัดการข้อสอบ">
                 </a>
                 <div>จัดการข้อสอบ</div>
             </div>
+
             <div class="image-item">
                 <a href="settings.html">
                     <img src="images/settings.png" alt="ตั้งค่าระบบ">
@@ -113,5 +140,6 @@
             </div>
         </div>
     </div>
+
 </body>
 </html>

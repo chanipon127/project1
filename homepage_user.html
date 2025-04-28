@@ -3,12 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <title>หน้าหลัก - ระบบตรวจข้อสอบ AI</title>
+    <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@400;600&display=swap" rel="stylesheet">
     <style>
         body {
             font-family: 'Prompt', sans-serif;
             margin: 0;
-            background: #f0f2f5;
-            text-align: center;
+            background: #eef2f7;
+            color: #333;
         }
 
         .navbar {
@@ -18,49 +19,72 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
         }
 
-        .navbar .logo {
-            font-size: 20px;
-            font-weight: bold;
+        .navbar img {
+            height: 50px;
         }
 
         .navbar a {
             color: white;
             text-decoration: none;
             font-weight: bold;
+            padding: 8px 16px;
+            background: #5c7cfa;
+            border-radius: 6px;
+            transition: background 0.3s ease;
+        }
+
+        .navbar a:hover {
+            background: #748ffc;
         }
 
         .content {
-            padding: 50px 20px;
+            padding: 60px 20px;
+            text-align: center;
         }
 
         h1 {
             color: #2a2a2a;
-            margin-bottom: 40px;
+            margin-bottom: 50px;
+            font-size: 2rem;
         }
 
         .image-container {
             display: flex;
             justify-content: center;
             flex-wrap: wrap;
-            gap: 20px;
+            gap: 30px;
         }
 
         .image-item {
-            text-align: center;
+            background: white;
+            padding: 20px;
+            border-radius: 16px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+            width: 220px;
+        }
+
+        .image-item:hover {
+            transform: translateY(-10px);
+            box-shadow: 0 8px 20px rgba(0,0,0,0.2);
         }
 
         .image-item img {
-            width: 200px; /* ขนาดของรูปภาพ */
-            height: 200px;
-            border-radius: 50%; /* ทำให้รูปภาพเป็นวงกลม */
-            margin-bottom: 30px; /* ระยะห่างระหว่างรูปภาพและข้อความ */
-            transition: transform 0.2s ease;
+            width: 150px;
+            height: 150px;
+            border-radius: 50%;
+            object-fit: cover;
+            margin-bottom: 20px;
+            transition: transform 0.3s ease;
         }
 
-        .image-item:hover img {
-            transform: scale(1.1); /* เมื่อ hover รูปภาพจะขยาย */
+        .image-item div {
+            font-weight: bold;
+            font-size: 1.1rem;
+            color: #444;
         }
 
         .logout {
@@ -75,44 +99,52 @@
     </style>
 </head>
 <body>
+
     <div class="navbar">
-        <img src="logo.png" alt="logo" width="70">
+        <img src="C:\Users\ACER\Downloads\logo.png" alt="logo">
         <div>
             <a href="login.html">ออกจากระบบ</a>
         </div>
     </div>
 
     <div class="content">
-        <h1>ยินดีต้อนรับสู่ ระบบตรวจข้อสอบอัตนัยด้วยปัญญาประดิษฐ์<?php echo $role == 'admin' ? 'แอดมิน' : 'ผู้ตรวจข้อสอบ'; ?></h1>
+        <h1>
+            ยินดีต้อนรับสู่ระบบตรวจข้อสอบอัตนัยด้วยปัญญาประดิษฐ์
+            <?php echo $role == 'admin' ? ' (แอดมิน)' : ' (ผู้ตรวจข้อสอบ)'; ?>
+        </h1>
 
         <div class="image-container">
-            <?php elseif ($role == 'teacher'): ?>
+            <?php if ($role == 'teacher'): ?>
                 <div class="image-item">
                     <a href="check_answers.php">
-                        <img src="ตรวจข้อสอบ.png" alt="ตรวจข้อสอบ">
+                        <img src="C:\Users\ACER\Downloads\ตรวจข้อสอบ.png" alt="ตรวจข้อสอบ">
                     </a>
                     <div>ตรวจข้อสอบ</div>
                 </div>
+
                 <div class="image-item">
                     <a href="view_scores.php">
-                        <img src="ดูคะแนน.png" alt="ดูคะแนน">
+                        <img src="C:\Users\ACER\Downloads\ดูคะแนน.png" alt="ดูคะแนน">
                     </a>
                     <div>ดูคะแนน</div>
                 </div>
+
                 <div class="image-item">
                     <a href="profile.php">
-                        <img src="profile.png" alt="โปรไฟล์ของฉัน">
+                        <img src="C:\Users\ACER\Downloads\profile.png" alt="โปรไฟล์ของฉัน">
                     </a>
                     <div>โปรไฟล์ของฉัน</div>
                 </div>
+
                 <div class="image-item">
                     <a href="contect_admin.php">
-                        <img src="ติดต่อadmin.png" alt="Admin">
+                        <img src="C:\Users\ACER\Downloads\ติดต่อadmin.png" alt="ติดต่อAdmin">
                     </a>
-                    <div>ประวัติการตรวจ</div>
+                    <div>ติดต่อAdmin</div>
                 </div>
             <?php endif; ?>
         </div>
     </div>
+
 </body>
 </html>
