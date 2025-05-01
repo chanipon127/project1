@@ -2,8 +2,18 @@ from fastapi import FastAPI, Request
 from pydantic import BaseModel
 import psycopg2
 from datetime import datetime
+from fastapi.middleware.cors import CORSMiddleware
 
 app = FastAPI()
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # หรือเปลี่ยนเป็น ["http://127.0.0.1:5500"] ถ้ารัน HTML ด้วย Live Server
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 
 # ✨ เชื่อม PostgreSQL (ใส่ข้อมูลของคุณ)
 conn = psycopg2.connect(
@@ -27,10 +37,10 @@ async def register_user(data: RegisterForm):
     try:
         cursor.execute(
             """
-            INSERT INTO "user" (username, email, password, role, created_at)
+            INSERT INTO "user" (role,username,email, password, created_at)
             VALUES (%s, %s, %s, %s, %s)
             """,
-            (data.username, data.email, data.password, data.role, datetime.now())
+            (data.role,data.username, data.email, data.password, datetime.now())
         )
         conn.commit()
         return {"message": "สมัครสมาชิกสำเร็จ"}
