@@ -52,11 +52,11 @@
     <div class="container">
         <div class="form-box">
             <h2>ลงทะเบียนผู้ใช้</h2>
-            <form action="register.php" method="POST">
+            <form id ="registerForm" method="POST">
                 <label>เลือกสิทธิ์ผู้ใช้งาน</label>
                 <select name="role" required>
                     <option value="">-- เลือกสิทธิ์ผู้ใช้งาน --</option>
-                    <option value="teacher">ผู้ตรวจข้อสอบ</option>
+                    <option value="examiner">ผู้ตรวจข้อสอบ</option>
                     <option value="admin">แอดมิน</option>
                 </select>   
 
@@ -74,4 +74,25 @@
         </div>
     </div>
 </body>
+ 
+<script>
+    document.getElementById("registerForm").addEventListener("submit", async (e) => {
+        e.preventDefault();
+    
+        const formData = new FormData(e.target);
+        const data = Object.fromEntries(formData.entries());
+    
+        const res = await fetch("http://127.0.0.1:53366/api/register", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify(data)
+        });
+    
+        const result = await res.json();
+        alert(result.message);
+    });
+    </script>
+    
 </html>
