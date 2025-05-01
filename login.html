@@ -167,30 +167,30 @@
   </header>
 
   <div class="content">
-    <!-- ฟอร์มเข้าสู่ระบบ -->
-    <div class="card">
-      <h3>เข้าสู่ระบบ</h3>
-      <form action="login.php" method="POST">
-        <div class="form-group">
-          <label for="username">ชื่อผู้ใช้</label>
-          <input type="text" id="username" name="username" required placeholder="กรุณากรอกชื่อผู้ใช้">
-        </div>
-  
-        <div class="form-group">
-          <label for="password">รหัสผ่าน</label>
-          <input type="password" id="password" name="password" required placeholder="กรุณากรอกรหัสผ่าน">
-        </div>
-  
-        <div class="form-group">
-          <input type="submit" value="เข้าสู่ระบบ">
-        </div>
-
-      </form>
-      <div class="footer">
-        <p>ยังไม่สมัครสมาชิก? <a href="register.html">ลงทะเบียน</a></p>
-
+    <!-- ส่วนฟอร์มเข้าสู่ระบบ -->
+<div class="card">
+  <h3>เข้าสู่ระบบ</h3>
+  <form id="loginForm">
+    <div class="form-group">
+      <label for="username">ชื่อผู้ใช้</label>
+      <input type="text" id="username" name="username" required placeholder="กรุณากรอกชื่อผู้ใช้">
     </div>
+
+    <div class="form-group">
+      <label for="password">รหัสผ่าน</label>
+      <input type="password" id="password" name="password" required placeholder="กรุณากรอกรหัสผ่าน">
     </div>
+
+    <div class="form-group">
+      <input type="submit" value="เข้าสู่ระบบ">
+    </div>
+  </form>
+
+  <div class="footer">
+    <p>ยังไม่สมัครสมาชิก? <a href="register.html">ลงทะเบียน</a></p>
+  </div>
+</div>
+
 
     <!-- รหัสการลงทะเบียน -->
     <div class="card">
@@ -210,5 +210,39 @@
       </table>
     </div>
   </div>
+  <script>
+    document.querySelector("form").addEventListener("submit", async function(e) {
+      e.preventDefault();
+  
+      const username = document.getElementById("username").value;
+      const password = document.getElementById("password").value;
+  
+      try {
+        const res = await fetch("http://127.0.0.1:8000/api/login", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({ username, password })
+        });
+  
+        const result = await res.json();
+  
+        if (res.ok) {
+          if (result.role === "admin") {
+            window.location.href = "homepage_admin.html";
+          } else if (result.role === "examiner") {
+            window.location.href = "homepage_user.html";
+          }
+        } else {
+          alert("เกิดข้อผิดพลาดในการเข้าสู่ระบบ: " + result.detail);
+        }
+  
+      } catch (err) {
+        alert("ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้");
+      }
+    });
+  </script>
+  
 </body>
 </html>

@@ -37,7 +37,7 @@ async def register_user(data: RegisterForm):
     try:
         cursor.execute(
             """
-            INSERT INTO "user" (role,username,email, password, created_at)
+            INSERT INTO "users" (role,username,email, password, created_at)
             VALUES (%s, %s, %s, %s, %s)
             """,
             (data.role,data.username, data.email, data.password, datetime.now())
@@ -47,3 +47,26 @@ async def register_user(data: RegisterForm):
     except Exception as e:
         conn.rollback()
         return {"message": f"เกิดข้อผิดพลาด: {str(e)}"}
+
+from fastapi import HTTPException
+
+class LoginForm(BaseModel):
+    username: str
+    password: str
+
+@app.post("/api/login")
+async def login(data: LoginForm):
+    try:
+        cursor.execute(
+            "SELECT role FROM users WHERE username = %s AND password = %s",
+            (data.username, data.password)
+        )
+        result = cursor.fetchone()
+        if result:
+            role = result[0]
+            return {"message": "เข้าสู่ระบบสำเร็จ", "role": role}
+        else:
+            raise HTTPException(status_code=401, detail="ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"เกิดข้อผิดพลาดภายในเซิร์ฟเวอร์: {str(e)}")
+

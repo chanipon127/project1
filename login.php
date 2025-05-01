@@ -1,70 +1,41 @@
 <?php
 session_start();
 
-$host = "localhost";
-$dbname = "ai_thai";
-$username = "root";
-$password = "";
+// ข้อมูลการเชื่อมต่อ Neon Database (PostgreSQL)
+$host = 'ep-floral-salad-a1wumcdl-pooler.ap-southeast-1.aws.neon.tech';  // แก้เป็น host ของคุณ
+$dbname = 'neodb';
+$user = 'neodb_owner';
+$password = 'npg_8TuqdaBURE5Z';
+$sslmode = 'require'; // Neon ต้องใช้ SSL
 
-$conn = new mysqli($host, $username, $password, $dbname);
-if ($conn->connect_error) {
-    die("เชื่อมต่อฐานข้อมูลล้มเหลว: " . $conn->connect_error);
-}
+// รับค่าจากฟอร์ม
+$username = $_POST['username'] ?? '';
+$password_input = $_POST['password'] ?? '';
 
-if ($_SERVER["REQUEST_METHOD"] == "POST") {
-    $input_username = $_POST['username'];
-    $input_password = $_POST['password'];
+try {
+    // สร้างการเชื่อมต่อ
+    $dsn = "pgsql:host=$host;dbname=$dbname;sslmode=$sslmode";
+    $pdo = new PDO($dsn, $user, $password, [
+        PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION
+    ]);
 
-    // ตรวจสอบในตาราง admin ก่อน
-    $sql_admin = "SELECT * FROM admin WHERE username = ?";
-    $stmt = $conn->prepare($sql_admin);
-    $stmt->bind_param("s", $input_username);
-    $stmt->execute();
-    $result = $stmt->get_result();
+    // ค้นหาผู้ใช้ในฐานข้อมูล
+    $stmt = $pdo->prepare("SELECT * FROM users WHERE username = :username");
+    $stmt->execute(['username' => $username]);
+    $user = $stmt->fetch(PDO::FETCH_ASSOC);
 
-    if ($result->num_rows > 0) {
-        $user = $result->fetch_assoc();
-        if (password_verify($input_password, $user['password'])) {
-            $_SESSION['username'] = $input_username;
-            $_SESSION['user_id'] = $user['admin_id'];
-            $_SESSION['role'] = 'admin';
-            header("Location: homepage_admin.html");
-            exit();  // ปิดการประมวลผลหลังจากเปลี่ยนเส้นทาง
-        } else {
-            // ถ้ารหัสผ่านไม่ถูกต้อง
-            header("Location: login.html?error=invalid_credentials");
-            exit();
-        }
+    // ตรวจสอบรหัสผ่าน
+    if ($user && password_verify($password_input, $user['password'])) {
+        // เข้าสู่ระบบสำเร็จ
+        $_SESSION['username'] = $user['username'];
+        $_SESSION['role'] = $user['role'];
+        echo "<script>alert('เข้าสู่ระบบสำเร็จ'); window.location.href = 'dashboard.php';</script>";
     } else {
-        // ถ้าไม่พบใน admin ให้ลองตรวจสอบใน examiners
-        $sql_examiner = "SELECT * FROM examiners WHERE username = ?";
-        $stmt = $conn->prepare($sql_examiner);
-        $stmt->bind_param("s", $input_username);
-        $stmt->execute();
-        $result = $stmt->get_result();
-
-        if ($result->num_rows > 0) {
-            $examiner = $result->fetch_assoc();
-            if (password_verify($input_password, $examiner['password'])) {
-                $_SESSION['username'] = $input_username;
-                $_SESSION['user_id'] = $examiner['examiner_id'];
-                $_SESSION['full_name'] = $examiner['full_name'];
-                $_SESSION['group_id'] = $examiner['group_id'];
-                $_SESSION['role'] = 'examiner';
-                header("Location: homepage_user.html");
-                exit();
-            } else {
-                // ถ้ารหัสผ่านไม่ถูกต้อง
-                header("Location: login.html?error=invalid_credentials");
-                exit();
-            }
-        } else {
-            // ถ้าไม่พบชื่อผู้ใช้ในทั้งสองตาราง
-            header("Location: login.html?error=invalid_credentials");
-            exit();
-        }
+        // เข้าสู่ระบบไม่สำเร็จ
+        echo "<script>alert('ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง'); window.history.back();</script>";
     }
-}
 
-$conn->close();
+} catch (PDOException $e) {
+    echo "เกิดข้อผิดพลาดในการเชื่อมต่อฐานข้อมูล: " . $e->getMessage();
+}
 ?>
