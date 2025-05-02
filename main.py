@@ -3,6 +3,8 @@ from pydantic import BaseModel
 import psycopg2
 from datetime import datetime
 from fastapi.middleware.cors import CORSMiddleware
+import bcrypt
+
 
 app = FastAPI()
 
@@ -35,12 +37,15 @@ class RegisterForm(BaseModel):
 @app.post("/api/register")
 async def register_user(data: RegisterForm):
     try:
+        # เข้ารหัสรหัสผ่านก่อนเก็บ
+        hashed_password = bcrypt.hashpw(data.password.encode('utf-8'), bcrypt.gensalt())
+        
         cursor.execute(
             """
-            INSERT INTO "users" (role,username,email, password, created_at)
+            INSERT INTO "users" (role, username, email, password, created_at)
             VALUES (%s, %s, %s, %s, %s)
             """,
-            (data.role,data.username, data.email, data.password, datetime.now())
+            (data.role, data.username, data.email, hashed_password.decode('utf-8'), datetime.now())
         )
         conn.commit()
         return {"message": "สมัครสมาชิกสำเร็จ"}
@@ -57,16 +62,20 @@ class LoginForm(BaseModel):
 @app.post("/api/login")
 async def login(data: LoginForm):
     try:
+        # ดึงรหัสผ่านจาก DB ตาม username
         cursor.execute(
-            "SELECT role FROM users WHERE username = %s AND password = %s",
-            (data.username, data.password)
+            "SELECT password, role FROM users WHERE username = %s",
+            (data.username,)
         )
         result = cursor.fetchone()
         if result:
-            role = result[0]
-            return {"message": "เข้าสู่ระบบสำเร็จ", "role": role}
-        else:
-            raise HTTPException(status_code=401, detail="ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง")
+            db_password, role = result
+            # ตรวจสอบรหัสผ่าน
+            if bcrypt.checkpw(data.password.encode('utf-8'), db_password.encode('utf-8')):
+                return {"message": "เข้าสู่ระบบสำเร็จ", "role": role}
+        
+        # ถ้าไม่ตรง
+        raise HTTPException(status_code=401, detail="ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง")
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"เกิดข้อผิดพลาดภายในเซิร์ฟเวอร์: {str(e)}")
 
