@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <title>ติดต่อผู้ดูแลระบบ</title>
+    <style>
+        body {
+            font-family: 'Arial', sans-serif;
+            background-color: #f5f7fa;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+        }
+        .container {
+            display: flex;
+            background: white;
+            box-shadow: 0 0 15px rgba(0,0,0,0.1);
+            border-radius: 15px;
+            padding: 40px;
+            gap: 40px;
+        }
+        .form-box {
+            width: 320px;
+        }
+        h2 {
+            margin-bottom: 20px;
+            color: #2a4d8c;
+        }
+        input, textarea {
+            width: 100%;
+            padding: 10px;
+            margin: 10px 0 20px;
+            border: 1px solid #ccc;
+            border-radius: 8px;
+            resize: vertical;
+        }
+        input[type="submit"] {
+            background-color: #3b5bdb;
+            color: white;
+            border: none;
+            padding: 12px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+        input[type="submit"]:hover {
+            background-color: #2f4caa;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="form-box">
+            <h2>ติดต่อผู้ดูแลระบบ</h2>
+            <form id="contactForm">
+                <label>ชื่อของคุณ</label>
+                <input type="text" name="name" required>
+
+                <label>username</label>
+                <input type="text" name="user" required>
+
+                <label>ข้อความ</label>
+                <textarea name="message" rows="5" required></textarea>
+
+                <input type="submit" value="ส่งข้อความ">
+            </form>
+        </div>
+    </div>
+
+    <script>
+        document.getElementById("contactForm").addEventListener("submit", async (e) => {
+            e.preventDefault();
+
+            const formData = new FormData(e.target);
+            const data = Object.fromEntries(formData.entries());
+
+            const res = await fetch("http://127.0.0.1:8000/api/contact-admin", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify(data)
+            });
+
+            const result = await res.json();
+            alert(result.message);
+        });
+    </script>
+</body>
+</html>
