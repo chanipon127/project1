@@ -75,18 +75,26 @@
             const formData = new FormData(e.target);
             const data = Object.fromEntries(formData.entries());
 
-            const res = await fetch("http://127.0.0.1:8000/api/contact-admin", {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json"
-                },
-                body: JSON.stringify(data)
-            });
+            try {
+                const res = await fetch("http://127.0.0.1:8000/api/contact-admin", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json"
+                    },
+                    body: JSON.stringify(data)
+                });
 
-            const result = await res.json();
-            // ตรวจสอบการตอบสนองจากเซิร์ฟเวอร์
-            console.log(result);
-            alert(result.message);
+                const result = await res.json();
+                alert(result.message);
+
+                if (res.ok) {
+                    window.location.href = "homepage_user.html"; // กลับหน้าหลักเมื่อสำเร็จ
+                }
+
+            } catch (error) {
+                console.error("เกิดข้อผิดพลาดในการส่ง:", error);
+                alert("ไม่สามารถส่งข้อความได้ กรุณาลองใหม่");
+            }
         });
     </script>
 </body>
