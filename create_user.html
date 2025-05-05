@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>เพิ่มผู้ใช้งานใหม่</title>
+  <link href="https://fonts.googleapis.com/css2?family=Sarabun&display=swap" rel="stylesheet">
+  <style>
+    body {
+      font-family: 'Sarabun', Arial, sans-serif;
+      background-color: #f5f5f5;
+      padding: 40px;
+    }
+    .form-container {
+      background: white;
+      padding: 30px;
+      max-width: 500px;
+      margin: auto;
+      box-shadow: 0 0 10px rgba(0,0,0,0.1);
+      border-radius: 10px;
+    }
+    h2 {
+      text-align: center;
+      color: #333;
+    }
+    label {
+      display: block;
+      margin-top: 15px;
+      font-weight: bold;
+    }
+    input, select {
+      width: 100%;
+      padding: 10px;
+      margin-top: 5px;
+      border-radius: 5px;
+      border: 1px solid #ccc;
+    }
+    button {
+      margin-top: 20px;
+      width: 100%;
+      padding: 12px;
+      background-color: #2196F3;
+      color: white;
+      border: none;
+      border-radius: 5px;
+      font-weight: bold;
+      cursor: pointer;
+    }
+    button:hover {
+      background-color: #0b7dda;
+    }
+  </style>
+</head>
+<body>
+  <div class="form-container">
+    <h2>เพิ่มผู้ใช้งานใหม่</h2>
+    <form id="registerForm">
+      <label>ชื่อผู้ใช้งาน (Username)</label>
+      <input type="text" name="username" required>
+
+      <label>ชื่อ-นามสกุล</label>
+      <input type="text" name="fullname" required>
+
+      <label>รหัสผ่าน</label>
+      <input type="password" name="password" required>
+
+      <label>บทบาท</label>
+      <select name="role" required>
+        <option value="">-- เลือกบทบาท --</option>
+        <option value="examiner">ผู้ตรวจข้อสอบ</option>
+        <option value="admin">แอดมิน</option>
+      </select>
+
+      <button type="submit">บันทึกผู้ใช้งาน</button>
+    </form>
+  </div>
+
+  <script>
+    document.getElementById("registerForm").addEventListener("submit", async function (e) {
+      e.preventDefault();
+      const formData = new FormData(e.target);
+      const data = Object.fromEntries(formData.entries());
+
+      const res = await fetch("http://127.0.0.1:8000/api/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data)
+      });
+
+      const result = await res.json();
+      alert(result.message);
+
+      if (res.ok) {
+        window.location.href = "manage_user.html"; // กลับหน้าหลักเมื่อสำเร็จ
+      }
+    });
+  </script>
+</body>
+</html>
