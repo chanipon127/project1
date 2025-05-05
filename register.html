@@ -46,6 +46,22 @@
         input[type="submit"]:hover {
             background-color: #2f4caa;
         }
+
+        /* ปรับปรุงการจัดการปุ่มแสดง/ซ่อนรหัสผ่านให้เหมือนกับสีปุ่มสมัครสมาชิก */
+        #togglePassword {
+            padding: 12px;
+            background-color: #3b5bdb; /* สีพื้นหลังเหมือนปุ่มสมัครสมาชิก */
+            color: white;
+            border: none;
+            font-weight: bold;
+            cursor: pointer;
+            border-radius: 8px;
+            width: 100%;
+            margin-top: 10px;
+        }
+        #togglePassword:hover {
+            background-color: #2f4caa; /* เปลี่ยนสีพื้นหลังเมื่อ hover เหมือนปุ่มสมัครสมาชิก */
+        }
     </style>
 </head>
 <body>
@@ -63,11 +79,14 @@
                 <label>ชื่อผู้ใช้</label>
                 <input type="text" name="username" required>
 
-                <label>อีเมล</label>
-                <input type="email" name="email" required>
+                <label>ชื่อ-นามสกุล</label>
+                <input type="text" name="fullname" required>
 
                 <label>รหัสผ่าน</label>
-                <input type="password" name="password" required>             
+                <input type="password" id="password" name="password" required>             
+
+                <!-- ปุ่มแสดง/ซ่อนรหัสผ่าน -->
+                <button type="button" id="togglePassword">แสดง/ซ่อนรหัสผ่าน</button>
 
                 <input type="submit" value="สมัครสมาชิก">
             </form>
@@ -75,6 +94,15 @@
     </div>
 
     <script>
+        // ฟังก์ชันในการแสดง/ซ่อนรหัสผ่าน
+        document.getElementById('togglePassword').addEventListener('click', function () {
+            const passwordField = document.getElementById('password');
+            const type = passwordField.type === 'password' ? 'text' : 'password';
+            passwordField.type = type;
+            this.textContent = type === 'password' ? 'แสดงรหัสผ่าน' : 'ซ่อนรหัสผ่าน';
+        });
+
+        // การส่งข้อมูลฟอร์ม
         document.getElementById("registerForm").addEventListener("submit", async (e) => {
             e.preventDefault();
 

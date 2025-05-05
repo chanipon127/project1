@@ -54,19 +54,20 @@
         }
 
         .image-container {
-            display: flex;
-            justify-content: center;
-            flex-wrap: wrap;
+            display: grid;
+            grid-template-columns: repeat(6, 1fr); /* Ensure 3 columns */
             gap: 30px;
+            justify-items: center;
         }
 
         .image-item {
             background: white;
-            padding: 20px;
+            padding: 10px;
             border-radius: 16px;
             box-shadow: 0 4px 10px rgba(0,0,0,0.1);
             transition: transform 0.3s ease, box-shadow 0.3s ease;
-            width: 220px;
+            width: 200px;
+            text-align: center;
         }
 
         .image-item:hover {
@@ -91,8 +92,15 @@
 
         @media (max-width: 768px) {
             .image-container {
-                flex-direction: column;
-                align-items: center;
+                grid-template-columns: 1fr 1fr; /* 2 columns for smaller screens */
+                gap: 50px
+            }
+        }
+
+        @media (max-width: 768px) {
+            .image-container {
+                grid-template-columns: 1fr; /* 1 column for very small screens */
+                gap: 100px
             }
         }
     </style>
@@ -119,7 +127,7 @@
             </div>
 
             <div class="image-item">
-                <a href="ocr.php">
+                <a href="ocr.html">
                     <img src="c:\Users\ACER\Downloads\ocr.jpg" alt="OCR" class="logo">
                 </a>
                 <div>OCR</div>
@@ -137,6 +145,13 @@
                     <img src="c:\Users\ACER\Downloads\manage_exam.jpg" alt="จัดการข้อสอบ" class="logo">
                 </a>
                 <div>จัดการข้อสอบ</div>
+            </div>
+
+            <div class="image-item">
+                <a href="view_feedback.html">
+                    <img src="c:\Users\ACER\Downloads\feedback.jpg" alt="feedback" class="logo">
+                </a>
+                <div>feedback</div>
             </div>
 
             <div class="image-item">

@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ความคิดเห็นจากผู้ใช้</title>
+  <link href="https://fonts.googleapis.com/css2?family=Sarabun&display=swap" rel="stylesheet">
+  <style>
+    body {
+      font-family: 'Sarabun', Arial, sans-serif;
+      margin: 0;
+      display: flex;
+    }
+    nav.sidebar {
+      width: 220px;
+      background: #333;
+      color: #fff;
+      min-height: 100vh;
+      padding: 20px;
+    }
+    nav.sidebar h2 {
+      font-size: 20px;
+      margin-bottom: 20px;
+    }
+    nav.sidebar a {
+      display: block;
+      color: #fff;
+      text-decoration: none;
+      margin-bottom: 10px;
+      padding: 10px;
+      background: #444;
+      border-radius: 5px;
+    }
+    nav.sidebar a:hover {
+      background: #555;
+    }
+    main.content {
+      flex: 1;
+      padding: 20px;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 20px;
+    }
+    th, td {
+      border: 1px solid #ccc;
+      padding: 10px;
+      text-align: left;
+    }
+    th {
+      background-color: #f2f2f2;
+    }
+    .btn-delete {
+      background-color: #f44336;
+      color: white;
+      border: none;
+      padding: 5px 10px;
+      border-radius: 3px;
+      cursor: pointer;
+    }
+    button:hover {
+      opacity: 0.8;
+    }
+    @media (max-width: 768px) {
+      nav.sidebar {
+        width: 100px;
+      }
+      nav.sidebar h2 {
+        font-size: 16px;
+      }
+      nav.sidebar a {
+        font-size: 14px;
+        padding: 5px;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <nav class="sidebar">
+    <h2>เมนู</h2>
+    <a href="homepage_admin.html">HOME PAGE</a>
+    <a href="manage_user.html">จัดการผู้ใช้งาน</a>
+    <a href="ocr_page.html">แปลงข้อความจากภาพ (OCR)</a>
+    <a href="maxmin_scores.html">ดูคะแนนสูงสุด-ต่ำสุด</a>
+    <a href="view_feedback.html">ดูความคิดเห็น</a>
+    <a href="contact_admin.html">ติดต่อแอดมิน</a>
+    <a href="settings.html">ตั้งค่าระบบ</a>
+    <a href="login.html">ออกจากระบบ</a>
+  </nav>
+
+  <main class="content">
+    <h1>ความคิดเห็นจากผู้ใช้งาน</h1>
+
+    <table>
+      <thead>
+        <tr>
+          <th>ชื่อผู้ส่ง</th>
+          <th>ชื่อผู้ใช้</th>
+          <th>ข้อความ</th>
+          <th>วันที่</th>
+          <th>การดำเนินการ</th>
+        </tr>
+      </thead>
+      <tbody id="feedbackTable">
+        <tr>
+          <td>สมชาย ใจดี</td>
+          <td>somchai123</td>
+          <td>ระบบใช้งานง่ายมากครับ ขอบคุณครับ</td>
+          <td>4 พฤษภาคม 2567</td>
+          <td><button class="btn-delete" onclick="confirmDelete()">ลบ</button></td>
+        </tr>
+        <tr>
+          <td>ศิริพร มีสุข</td>
+          <td>siri56</td>
+          <td>อยากให้เพิ่มระบบค้นหาคะแนนย้อนหลัง</td>
+          <td>3 พฤษภาคม 2567</td>
+          <td><button class="btn-delete" onclick="confirmDelete()">ลบ</button></td>
+        </tr>
+      </tbody>
+    </table>
+  </main>
+
+  <script>
+    function confirmDelete() {
+      if (confirm('คุณแน่ใจว่าต้องการลบความคิดเห็นนี้?')) {
+        alert('ลบความคิดเห็นเรียบร้อย');
+        // ในระบบจริงให้เรียก API สำหรับลบข้อมูล
+      }
+    }
+  </script>
+
+</body>
+</html>
+
+

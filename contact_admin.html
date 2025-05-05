@@ -84,6 +84,8 @@
             });
 
             const result = await res.json();
+            // ตรวจสอบการตอบสนองจากเซิร์ฟเวอร์
+            console.log(result);
             alert(result.message);
         });
     </script>
