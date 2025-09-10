@@ -88,3 +88,38 @@ async def admin_contact(data: ContactForm):
     except Exception as e:
         conn.rollback()
         raise HTTPException(status_code=500, detail=f"เกิดข้อผิดพลาด: {str(e)}")
+ 
+#📌 ดึงข้อมูลโปรไฟล์   
+@app.get("/api/profile_user/{username}")
+async def get_profile(username: str):
+    cur = conn.cursor()
+    cur.execute("SELECT username, fullname, role FROM users WHERE username = %s", (username,))
+    user = cur.fetchone()
+    if user:
+        return {"username": user[0], "fullname": user[1], "role": user[2]}
+    raise HTTPException(status_code=404, detail="ไม่พบผู้ใช้")
+
+#📌 อัปเดตโปรไฟล์
+class UpdateProfileForm(BaseModel):
+    username: str
+    fullname: str
+    new_password: str | None = None  # อาจมีหรือไม่มีก็ได้
+
+@app.put("/api/profile_user/update")
+async def update_profile(data: UpdateProfileForm):
+    try:
+        cur = conn.cursor()
+        if data.new_password:
+            hashed_password = bcrypt.hashpw(data.new_password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+            cur.execute("""
+                UPDATE users SET fullname = %s, password = %s WHERE username = %s
+            """, (data.fullname, hashed_password, data.username))
+        else:
+            cur.execute("""
+                UPDATE users SET fullname = %s WHERE username = %s
+            """, (data.fullname, data.username))
+        conn.commit()
+        return {"message": "อัปเดตโปรไฟล์สำเร็จ"}
+    except Exception as e:
+        conn.rollback()
+        raise HTTPException(status_code=500, detail=f"เกิดข้อผิดพลาด: {str(e)}")

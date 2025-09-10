@@ -156,67 +156,45 @@
   </style>
 </head>
 <body>
-
   <header>
     <nav>
       <h1>ระบบการตรวจข้อสอบอัตโนมัติด้วยปัญญาประดิษฐ์</h1>
     </nav>
     <div class="logo">
-      <img src="c:\Users\ACER\Downloads\logo.png" alt="โลโก้">
+      <!-- อย่าใช้ path แบบ C:\ ในเว็บ; ใช้ relative หรือ URL แทน -->
+      <img src="logo.png" alt="โลโก้">
     </div>
   </header>
 
   <div class="content">
-    <!-- ส่วนฟอร์มเข้าสู่ระบบ -->
-<div class="card">
-  <h3>เข้าสู่ระบบ</h3>
-  <form id="loginForm">
-    <div class="form-group">
-      <label for="username">ชื่อผู้ใช้</label>
-      <input type="text" id="username" name="username" required placeholder="กรุณากรอกชื่อผู้ใช้">
+    <div class="card">
+      <h3>เข้าสู่ระบบ</h3>
+      <form id="loginForm">
+        <div class="form-group">
+          <label for="username">ชื่อผู้ใช้</label>
+          <input type="text" id="username" name="username" required placeholder="กรุณากรอกชื่อผู้ใช้">
+        </div>
+        <div class="form-group">
+          <label for="password">รหัสผ่าน</label>
+          <input type="password" id="password" name="password" required placeholder="กรุณากรอกรหัสผ่าน">
+        </div>
+        <div class="form-group" style="text-align:center;">
+          <button type="button" id="togglePassword" style="padding:10px; background:none; border:1px solid #ccc; color:#4c65af; cursor:pointer; border-radius:6px;">แสดง/ซ่อนรหัสผ่าน</button>
+        </div>
+        <div class="form-group">
+          <input type="submit" value="เข้าสู่ระบบ">
+        </div>
+      </form>
+      <div class="footer">
+        <p>ยังไม่สมัครสมาชิก? <a href="register.html">ลงทะเบียน</a></p>
+      </div>
     </div>
 
-    <div class="form-group">
-      <label for="password">รหัสผ่าน</label>
-      <input type="password" id="password" name="password" required placeholder="กรุณากรอกรหัสผ่าน" style="width: 100%; padding: 10px; border-radius: 6px;">
-    </div>
-    
-    <!-- ปุ่มแสดง/ซ่อนรหัสผ่านอยู่ข้างล่างช่องกรอกรหัสผ่าน -->
-    <div class="form-group" style="text-align: center;">
-      <button type="button" id="togglePassword" style="padding: 10px; background: none; border: 1px solid #ccc; color: #4c65af; cursor: pointer; border-radius: 6px;">แสดง/ซ่อนรหัสผ่าน</button>
-    </div>
-    
-    <script>
-      document.getElementById('togglePassword').addEventListener('click', function () {
-        const passwordField = document.getElementById('password');
-        const type = passwordField.type === 'password' ? 'text' : 'password';
-        passwordField.type = type;
-        this.textContent = type === 'password' ? 'แสดงรหัสผ่าน' : 'ซ่อนรหัสผ่าน';
-      });
-    </script>
-    
-    
-
-    <div class="form-group">
-      <input type="submit" value="เข้าสู่ระบบ">
-    </div>
-  </form>
-
-  <div class="footer">
-    <p>ยังไม่สมัครสมาชิก? <a href="register.html">ลงทะเบียน</a></p>
-  </div>
-</div>
-
-
-    <!-- รหัสการลงทะเบียน -->
     <div class="card">
       <h3>รหัสการลงทะเบียน</h3>
       <table>
         <thead>
-          <tr>
-            <th>No.</th>
-            <th>หมายเหตุ</th>
-          </tr>
+          <tr><th>No.</th><th>หมายเหตุ</th></tr>
         </thead>
         <tbody>
           <tr><td>1001</td><td>ผู้ตรวจข้อสอบ</td></tr>
@@ -226,39 +204,59 @@
       </table>
     </div>
   </div>
+
   <script>
-    document.querySelector("form").addEventListener("submit", async function(e) {
+    // แสดง/ซ่อนรหัสผ่าน
+    document.getElementById('togglePassword').addEventListener('click', function () {
+      const p = document.getElementById('password');
+      const t = p.type === 'password' ? 'text' : 'password';
+      p.type = t;
+      this.textContent = t === 'password' ? 'แสดง/ซ่อนรหัสผ่าน' : 'แสดง/ซ่อนรหัสผ่าน';
+    });
+
+    // Helper: บันทึกข้อมูลที่จำเป็นหลัง login (ใช้ localStorage เป็นตัวอย่าง)
+    function saveAuth(data) {
+      // แนะนำ: ใน production ให้ใช้ httpOnly cookie แทน localStorage ถ้าเป็นไปได้
+      if (data.token) localStorage.setItem('accessToken', data.token);
+      if (data.user?.id) localStorage.setItem('userId', data.user.id);
+      if (data.user?.role) localStorage.setItem('role', data.user.role);
+      if (data.user?.fullname) localStorage.setItem('fullname', data.user.fullname);
+      if (data.user?.profileImg) localStorage.setItem('profileImg', data.user.profileImg);
+    }
+
+    document.getElementById('loginForm').addEventListener('submit', async function(e) {
       e.preventDefault();
-  
-      const username = document.getElementById("username").value;
+      const username = document.getElementById("username").value.trim();
       const password = document.getElementById("password").value;
-  
+
       try {
         const res = await fetch("http://127.0.0.1:8000/api/login", {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json"
-          },
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ username, password })
         });
-  
+
         const result = await res.json();
-  
+
         if (res.ok) {
-          if (result.role === "admin") {
+          // คาดว่า backend ส่งกลับ { token, user: { id, username, fullname, role, profileImg } }
+          saveAuth(result);
+          // เลือกหน้าเป้าหมายตาม role
+          const role = result.user?.role || localStorage.getItem('role');
+          if (role === "admin") {
             window.location.href = "homepage_admin.html";
-          } else if (result.role === "examiner") {
+          } else {
             window.location.href = "homepage_user.html";
           }
         } else {
-          alert("เกิดข้อผิดพลาดในการเข้าสู่ระบบ: " + result.detail);
+          // แสดง error message จาก server (เช่น 401, 400)
+          alert("เข้าสู่ระบบไม่สำเร็จ: " + (result.detail || result.message || "โปรดลองอีกครั้ง"));
         }
-  
       } catch (err) {
+        console.error(err);
         alert("ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้");
       }
     });
   </script>
-  
 </body>
 </html>

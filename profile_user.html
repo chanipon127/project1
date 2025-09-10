@@ -119,7 +119,6 @@
   </style>
 </head>
 <body>
-
   <!-- Navbar -->
   <div class="navbar">
     <div class="navbar-left">
@@ -127,15 +126,15 @@
       <a href="check_exam.html">ตรวจข้อสอบ</a>
       <a href="profile_user.html">จัดการผู้ใช้งาน</a>
       <a href="contact_admin.html">ติดต่อแอดมิน</a>
-      <a href="login.html">ออกจากระบบ</a>
+      <a href="#" id="logoutLink">ออกจากระบบ</a>
     </div>
     <div class="navbar-right">
       <div class="user-info">
         <div>
-          <strong>mr.ja</strong><br>
-          <small>ja127</small>
+          <strong id="displayFullname">ชื่อ</strong><br>
+          <small id="displayUsername">username</small>
         </div>
-        <img src="https://via.placeholder.com/40" alt="User">
+        <img src="https://via.placeholder.com/40" alt="User" id="navProfileImg">
       </div>
     </div>
   </div>
@@ -144,33 +143,108 @@
   <div class="container">
     <div class="form-box">
       <h2>Account Setting</h2>
-      <div class="form-row">
-        <label>Status</label>
-        <input type="text" value="Admin" readonly>
-      </div>
-      <div class="form-row">
-        <label>FULLNAME</label>
-        <input type="text" value="Mr.Ja Do">
-        <img src="https://cdn-icons-png.flaticon.com/512/1827/1827933.png" class="edit-icon" alt="edit">
-      </div>
-      <div class="form-row">
-        <label>USERNAME</label>
-        <input type="text" value="ja127">
-        <img src="https://cdn-icons-png.flaticon.com/512/1827/1827933.png" class="edit-icon" alt="edit">
-      </div>
-      <div class="form-row">
-        <label>New Password</label>
-        <input type="password" placeholder="XXXXXXXXX">
-        <img src="https://cdn-icons-png.flaticon.com/512/1827/1827933.png" class="edit-icon" alt="edit">
-      </div>
+      <form id="profileForm">
+        <div class="form-row">
+          <label>Status</label>
+          <input type="text" id="status" name="status" readonly>
+        </div>
+        <div class="form-row">
+          <label>FULLNAME</label>
+          <input type="text" id="fullname" name="fullname">
+        </div>
+        <div class="form-row">
+          <label>USERNAME</label>
+          <input type="text" id="username" name="username" readonly>
+        </div>
+        <div class="form-row">
+          <label>New Password</label>
+          <input type="password" id="password" name="password" placeholder="ใส่ถ้าต้องการเปลี่ยน">
+        </div>
+        <button type="submit" class="update-btn">Update</button>
+      </form>
     </div>
 
     <div class="profile">
-      <img src="https://via.placeholder.com/120" alt="User Profile">
-      <br>
-      <button class="update-btn">update</button>
+      <img src="https://via.placeholder.com/120" alt="User Profile" id="profileImg">
     </div>
   </div>
 
+  <script>
+    // Helper: wrapper fetch ที่ใส่ Authorization ถ้ามี token
+    async function authFetch(url, opts = {}) {
+      const token = localStorage.getItem('accessToken');
+      const headers = opts.headers ? {...opts.headers} : {};
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+      // content-type default แค่เมื่อมี body เป็น json
+      if (opts.body && !headers['Content-Type']) headers['Content-Type'] = 'application/json';
+      opts.headers = headers;
+      const res = await fetch(url, opts);
+      const payload = await res.json().catch(()=>null);
+      if (!res.ok) throw payload || { message: 'HTTP ' + res.status };
+      return payload;
+    }
+
+    const userId = localStorage.getItem('userId');
+    if (!userId) {
+      // ยังไม่มี userId -> บังคับไปล็อกอิน
+      alert('กรุณาล็อกอินก่อน');
+      window.location.href = 'login.html';
+    }
+
+    async function loadProfile() {
+      try {
+        const user = await authFetch(`http://127.0.0.1:8000/api/profile/${userId}`);
+        document.getElementById("status").value = user.status || user.role || '';
+        document.getElementById("fullname").value = user.fullname || '';
+        document.getElementById("username").value = user.username || '';
+        document.getElementById("profileImg").src = user.profileImg || 'https://via.placeholder.com/120';
+        document.getElementById("displayFullname").innerText = user.fullname || '';
+        document.getElementById("displayUsername").innerText = user.username || '';
+        document.getElementById("navProfileImg").src = user.profileImg || 'https://via.placeholder.com/40';
+      } catch (err) {
+        console.error(err);
+        alert('ไม่สามารถโหลดข้อมูลโปรไฟล์ได้: ' + (err.message || JSON.stringify(err)));
+        // ถ้าเป็น 401/403 -> redirect ไป login
+        // window.location.href = 'login.html';
+      }
+    }
+
+    document.getElementById("profileForm").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const formData = new FormData(e.target);
+      const data = Object.fromEntries(formData.entries());
+      // ลบฟิลด์ password ถ้าว่าง (ไม่ต้องอัปเดต)
+      if (!data.password) delete data.password;
+      try {
+        const result = await authFetch(`http://127.0.0.1:8000/api/profile/${userId}`, {
+          method: 'PUT',
+          body: JSON.stringify(data)
+        });
+        alert(result.message || 'อัปเดตสำเร็จ');
+        // อัปเดต localStorage info ถ้ามีการเปลี่ยนแปลง
+        if (result.user) {
+          if (result.user.fullname) localStorage.setItem('fullname', result.user.fullname);
+          if (result.user.profileImg) localStorage.setItem('profileImg', result.user.profileImg);
+        }
+        loadProfile();
+      } catch (err) {
+        console.error(err);
+        alert('อัปเดตไม่สำเร็จ: ' + (err.message || JSON.stringify(err)));
+      }
+    });
+
+    // Logout
+    document.getElementById('logoutLink').addEventListener('click', (e) => {
+      e.preventDefault();
+      localStorage.removeItem('accessToken');
+      localStorage.removeItem('userId');
+      localStorage.removeItem('role');
+      localStorage.removeItem('fullname');
+      localStorage.removeItem('profileImg');
+      window.location.href = 'login.html';
+    });
+
+    loadProfile();
+  </script>
 </body>
 </html>
