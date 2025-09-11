@@ -65,75 +65,71 @@
     </style>
 </head>
 <body>
-  <div class="container">
-    <div class="form-box">
-      <h2>ลงทะเบียนผู้ใช้</h2>
-      <form id="registerForm">
-        <label>เลือกสิทธิ์ผู้ใช้งาน</label>
-        <select name="role" required>
-          <option value="">-- เลือกสิทธิ์ผู้ใช้งาน --</option>
-          <option value="examiner">ผู้ตรวจข้อสอบ</option>
-          <option value="admin">แอดมิน</option>
-        </select>
+    <div class="container">
+        <div class="form-box">
+            <h2>ลงทะเบียนผู้ใช้</h2>
+            <form id="registerForm">
+                <label>เลือกสิทธิ์ผู้ใช้งาน</label>
+                <select name="role" required>
+                    <option value="">-- เลือกสิทธิ์ผู้ใช้งาน --</option>
+                    <option value="examiner">ผู้ตรวจข้อสอบ</option>
+                    <option value="admin">แอดมิน</option>
+                </select>   
 
-        <label>ชื่อผู้ใช้</label>
-        <input type="text" name="username" required>
+                <label>ชื่อผู้ใช้</label>
+                <input type="text" name="username" required>
 
-        <label>ชื่อ-นามสกุล</label>
-        <input type="text" name="fullname" required>
+                <label>ชื่อ-นามสกุล</label>
+                <input type="text" name="fullname" required>
 
-        <label>รหัสผ่าน</label>
-        <input type="password" id="password" name="password" required>
+                <label>รหัสผ่าน</label>
+                <input type="password" id="password" name="password" required>             
 
-        <button type="button" id="togglePassword">แสดง/ซ่อนรหัสผ่าน</button>
+                <!-- ปุ่มแสดง/ซ่อนรหัสผ่าน -->
+                <button type="button" id="togglePassword">แสดง/ซ่อนรหัสผ่าน</button>
 
-        <input type="submit" value="สมัครสมาชิก">
-      </form>
+                <input type="submit" value="สมัครสมาชิก">
+            </form>
+        </div>
     </div>
-  </div>
 
-  <script>
-    document.getElementById('togglePassword').addEventListener('click', function () {
-      const p = document.getElementById('password');
-      p.type = p.type === 'password' ? 'text' : 'password';
-      this.textContent = p.type === 'password' ? 'แสดงรหัสผ่าน' : 'ซ่อนรหัสผ่าน';
-    });
-
-    document.getElementById("registerForm").addEventListener("submit", async (e) => {
-      e.preventDefault();
-      const formData = new FormData(e.target);
-      const data = Object.fromEntries(formData.entries());
-
-      try {
-        const res = await fetch("http://127.0.0.1:8000/api/register", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(data)
+    <script>
+        // ฟังก์ชันในการแสดง/ซ่อนรหัสผ่าน
+        document.getElementById('togglePassword').addEventListener('click', function () {
+            const passwordField = document.getElementById('password');
+            const type = passwordField.type === 'password' ? 'text' : 'password';
+            passwordField.type = type;
+            this.textContent = type === 'password' ? 'แสดงรหัสผ่าน' : 'ซ่อนรหัสผ่าน';
         });
-        const result = await res.json();
 
-        if (res.ok) {
-          // ถ้า backend ส่ง token + user ให้เก็บไว้และ login อัตโนมัติ
-          if (result.token && result.user) {
-            localStorage.setItem('accessToken', result.token);
-            localStorage.setItem('userId', result.user.id);
-            localStorage.setItem('role', result.user.role);
-            alert("สมัครเรียบร้อยและล็อกอินอัตโนมัติ");
-            if (result.user.role === 'admin') window.location.href = "homepage_admin.html";
-            else window.location.href = "homepage_user.html";
-          } else {
-            // ถ้า backend ไม่ส่ง token -> แจ้งและไปหน้าล็อกอิน
-            alert(result.message || "สมัครสมาชิกเรียบร้อย กรุณาเข้าสู่ระบบ");
-            window.location.href = "login.html";
-          }
-        } else {
-          alert("สมัครไม่สำเร็จ: " + (result.detail || result.message || "โปรดลองอีกครั้ง"));
-        }
-      } catch (err) {
-        console.error(err);
-        alert("ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้");
-      }
-    });
-  </script>
+        // การส่งข้อมูลฟอร์ม
+        document.getElementById("registerForm").addEventListener("submit", async (e) => {
+            e.preventDefault();
+
+            const formData = new FormData(e.target);
+            const data = Object.fromEntries(formData.entries());
+
+            try{
+                const res = await fetch("http://127.0.0.1:8000/api/register", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json"
+                    },
+                    body: JSON.stringify(data)
+                });
+
+                const result = await res.json();
+                alert(result.message);
+
+                if (res.ok) {
+                    window.location.href = "login.html"; // กลับหน้าหลักเมื่อสำเร็จ
+                }   
+                
+            } catch (error){
+                console.error("เกิดข้อผิดพลาดในการสมัครสมาชิก:", error);
+                alert("ไม่สามารถสมัครสมาชิกได้ กรุณาลองใหม่");
+            }
+        });
+    </script>
 </body>
 </html>

@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="th">
+
 <head>
   <meta charset="UTF-8">
   <title>Account Setting</title>
@@ -17,11 +18,6 @@
       padding: 10px 20px;
       display: flex;
       justify-content: space-between;
-      align-items: center;
-    }
-
-    .navbar-left, .navbar-right {
-      display: flex;
       align-items: center;
     }
 
@@ -60,11 +56,12 @@
       background-color: #ddd;
       padding: 30px;
       width: 60%;
-      box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
     }
 
     .form-box h2 {
       margin-top: 0;
+      margin-bottom: 20px;
     }
 
     .form-row {
@@ -82,7 +79,7 @@
       flex: 1;
       padding: 10px;
       border: none;
-      box-shadow: 2px 2px 5px rgba(0,0,0,0.1);
+      box-shadow: 2px 2px 5px rgba(0, 0, 0, 0.1);
     }
 
     .edit-icon {
@@ -93,7 +90,16 @@
     }
 
     .profile {
+      background: white;
+      padding: 20px;
       text-align: center;
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+      width: 400px;
+      /* กำหนดความกว้างกล่อง */
+      margin: 0 auto;
+      /* จัดให้อยู่กลางแนวนอน */
+      border-radius: 10px;
+      /* มุมโค้งเล็กน้อย */
     }
 
     .profile img {
@@ -104,6 +110,9 @@
     }
 
     .update-btn {
+      display: block;
+      margin: 20px auto 0;
+      /* ปุ่มกลาง */
       background-color: #3c4db2;
       color: white;
       border: none;
@@ -111,6 +120,7 @@
       font-weight: bold;
       font-size: 16px;
       cursor: pointer;
+      border-radius: 4px;
     }
 
     .update-btn:hover {
@@ -118,7 +128,9 @@
     }
   </style>
 </head>
+
 <body>
+
   <!-- Navbar -->
   <div class="navbar">
     <div class="navbar-left">
@@ -126,125 +138,113 @@
       <a href="check_exam.html">ตรวจข้อสอบ</a>
       <a href="profile_user.html">จัดการผู้ใช้งาน</a>
       <a href="contact_admin.html">ติดต่อแอดมิน</a>
-      <a href="#" id="logoutLink">ออกจากระบบ</a>
+      <a href="login.html">ออกจากระบบ</a>
     </div>
     <div class="navbar-right">
       <div class="user-info">
         <div>
-          <strong id="displayFullname">ชื่อ</strong><br>
-          <small id="displayUsername">username</small>
+          <strong>mr.ja</strong><br>
+          <small>ja127</small>
         </div>
-        <img src="https://via.placeholder.com/40" alt="User" id="navProfileImg">
+        <img src="https://via.placeholder.com/40" alt="User">
       </div>
     </div>
   </div>
 
   <!-- Main content -->
   <div class="container">
+    <!-- Form -->
     <div class="form-box">
       <h2>Account Setting</h2>
-      <form id="profileForm">
-        <div class="form-row">
-          <label>Status</label>
-          <input type="text" id="status" name="status" readonly>
-        </div>
-        <div class="form-row">
-          <label>FULLNAME</label>
-          <input type="text" id="fullname" name="fullname">
-        </div>
-        <div class="form-row">
-          <label>USERNAME</label>
-          <input type="text" id="username" name="username" readonly>
-        </div>
-        <div class="form-row">
-          <label>New Password</label>
-          <input type="password" id="password" name="password" placeholder="ใส่ถ้าต้องการเปลี่ยน">
-        </div>
-        <button type="submit" class="update-btn">Update</button>
-      </form>
-    </div>
 
-    <div class="profile">
-      <img src="https://via.placeholder.com/120" alt="User Profile" id="profileImg">
+      <div class="form-row">
+        <label>Status</label>
+        <input type="text" id="status" readonly>
+      </div>
+
+      <div class="form-row">
+        <label>FULLNAME</label>
+        <input type="text" id="fullname">
+        <img src="https://cdn-icons-png.flaticon.com/512/1827/1827933.png" class="edit-icon" alt="edit">
+      </div>
+
+      <div class="form-row">
+        <label>USERNAME</label>
+        <input type="text" id="username">
+        <img src="https://cdn-icons-png.flaticon.com/512/1827/1827933.png" class="edit-icon" alt="edit">
+      </div>
+
+      <div class="form-row">
+        <label>New Password</label>
+        <input type="password" id="new-password" placeholder="XXXXXXXXX">
+        <img src="https://cdn-icons-png.flaticon.com/512/1827/1827933.png" class="edit-icon" alt="edit">
+      </div>
+
+      <!-- profile box -->
+      <div class="profile">
+        <h3>User Profile</h3>
+        <img id="profile-img" src="https://via.placeholder.com/120" alt="Profile Picture">
+        <input type="file" id="upload-img" accept="image/*" style="margin-top:10px;">
+      </div>
+
+      <button id="update-btn" class="update-btn">Update</button>
     </div>
   </div>
 
   <script>
-    // Helper: wrapper fetch ที่ใส่ Authorization ถ้ามี token
-    async function authFetch(url, opts = {}) {
-      const token = localStorage.getItem('accessToken');
-      const headers = opts.headers ? {...opts.headers} : {};
-      if (token) headers['Authorization'] = `Bearer ${token}`;
-      // content-type default แค่เมื่อมี body เป็น json
-      if (opts.body && !headers['Content-Type']) headers['Content-Type'] = 'application/json';
-      opts.headers = headers;
-      const res = await fetch(url, opts);
-      const payload = await res.json().catch(()=>null);
-      if (!res.ok) throw payload || { message: 'HTTP ' + res.status };
-      return payload;
-    }
-
-    const userId = localStorage.getItem('userId');
-    if (!userId) {
-      // ยังไม่มี userId -> บังคับไปล็อกอิน
-      alert('กรุณาล็อกอินก่อน');
-      window.location.href = 'login.html';
-    }
-
-    async function loadProfile() {
-      try {
-        const user = await authFetch(`http://127.0.0.1:8000/api/profile/${userId}`);
-        document.getElementById("status").value = user.status || user.role || '';
-        document.getElementById("fullname").value = user.fullname || '';
-        document.getElementById("username").value = user.username || '';
-        document.getElementById("profileImg").src = user.profileImg || 'https://via.placeholder.com/120';
-        document.getElementById("displayFullname").innerText = user.fullname || '';
-        document.getElementById("displayUsername").innerText = user.username || '';
-        document.getElementById("navProfileImg").src = user.profileImg || 'https://via.placeholder.com/40';
-      } catch (err) {
-        console.error(err);
-        alert('ไม่สามารถโหลดข้อมูลโปรไฟล์ได้: ' + (err.message || JSON.stringify(err)));
-        // ถ้าเป็น 401/403 -> redirect ไป login
-        // window.location.href = 'login.html';
+    // โหลดข้อมูลเริ่มต้น
+    document.addEventListener("DOMContentLoaded", () => {
+      const currentUser = localStorage.getItem("username");  // ✅ เอาจาก localStorage
+      if (!currentUser) {
+        alert("กรุณาเข้าสู่ระบบใหม่");
+        window.location.href = "login.html";
+        return;
       }
-    }
 
-    document.getElementById("profileForm").addEventListener("submit", async (e) => {
-      e.preventDefault();
-      const formData = new FormData(e.target);
-      const data = Object.fromEntries(formData.entries());
-      // ลบฟิลด์ password ถ้าว่าง (ไม่ต้องอัปเดต)
-      if (!data.password) delete data.password;
+      fetch(`http://127.0.0.1:8000/api/userinfo?username=${currentUser}`)
+        .then(res => res.json())
+        .then(user => {
+          document.querySelector(".user-info strong").textContent = user.fullname;
+          document.querySelector(".user-info small").textContent = user.username;
+          document.querySelector(".user-info img").src = user.profile_img;
+
+          document.getElementById("status").value = user.role;  // ✅ ใช้ role
+          document.getElementById("fullname").value = user.fullname;
+          document.getElementById("username").value = user.username;
+          document.getElementById("profile-img").src = user.profile_img;
+        })
+        .catch(err => console.error("Error loading user data:", err));
+    });
+
+    document.getElementById("update-btn").addEventListener("click", async () => {
+      const fullname = document.getElementById("fullname").value;
+      const username = localStorage.getItem("username");   // ✅ ใช้ค่า username จาก localStorage
+      const password = document.getElementById("new-password").value;
+      const file = document.getElementById("upload-img").files[0];
+
+      const formData = new FormData();
+      formData.append("username", username);   // ✅ ต้องส่งแน่ ๆ
+      if (fullname) formData.append("fullname", fullname);
+      if (password) formData.append("password", password);
+      if (file) formData.append("profile_img", file);
+
       try {
-        const result = await authFetch(`http://127.0.0.1:8000/api/profile/${userId}`, {
-          method: 'PUT',
-          body: JSON.stringify(data)
+        const res = await fetch("http://127.0.0.1:8000/api/update_user", {
+          method: "POST",
+          body: formData
         });
-        alert(result.message || 'อัปเดตสำเร็จ');
-        // อัปเดต localStorage info ถ้ามีการเปลี่ยนแปลง
-        if (result.user) {
-          if (result.user.fullname) localStorage.setItem('fullname', result.user.fullname);
-          if (result.user.profileImg) localStorage.setItem('profileImg', result.user.profileImg);
-        }
-        loadProfile();
+
+        const result = await res.json();
+        alert(result.message || "อัปเดตสำเร็จ!");
+        location.reload(); // รีเฟรชเพื่อให้โชว์ข้อมูลใหม่
       } catch (err) {
-        console.error(err);
-        alert('อัปเดตไม่สำเร็จ: ' + (err.message || JSON.stringify(err)));
+        console.error("Update error:", err);
+        alert("เกิดข้อผิดพลาดในการอัปเดต");
       }
     });
 
-    // Logout
-    document.getElementById('logoutLink').addEventListener('click', (e) => {
-      e.preventDefault();
-      localStorage.removeItem('accessToken');
-      localStorage.removeItem('userId');
-      localStorage.removeItem('role');
-      localStorage.removeItem('fullname');
-      localStorage.removeItem('profileImg');
-      window.location.href = 'login.html';
-    });
-
-    loadProfile();
   </script>
+
 </body>
+
 </html>

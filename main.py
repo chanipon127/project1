@@ -1,9 +1,12 @@
-from fastapi import FastAPI, Request, HTTPException
+from fastapi import FastAPI, Request, Form, File, UploadFile, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import psycopg2
 from datetime import datetime
 import bcrypt
+import os
+import shutil
+from fastapi.staticfiles import StaticFiles
 
 app = FastAPI()
 
@@ -53,21 +56,26 @@ class LoginForm(BaseModel):
     username: str
     password: str
     
-# 🔐 Login
+# ✅ Login
 @app.post("/api/login")
 async def login(data: LoginForm):
     try:
-        cur = conn.cursor()
-        cur.execute("SELECT password, role FROM users WHERE username = %s", (data.username,))
-        result = cur.fetchone()
-        if result:
-            db_password, role = result
-            if bcrypt.checkpw(data.password.encode('utf-8'), db_password.encode('utf-8')):
-                return {"message": "เข้าสู่ระบบสำเร็จ", "role": role}
+        with conn.cursor() as cur:
+            cur.execute("SELECT password, role, fullname FROM users WHERE username = %s", (data.username,))
+            result = cur.fetchone()
+            if result:
+                db_password, role, fullname = result
+                if bcrypt.checkpw(data.password.encode('utf-8'), db_password.encode('utf-8')):
+                    return {
+                        "message": "เข้าสู่ระบบสำเร็จ",
+                        "username": data.username,
+                        "fullname": fullname,
+                        "role": role
+                    }
         raise HTTPException(status_code=401, detail="ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง")
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"เกิดข้อผิดพลาด: {str(e)}")
-
+    
 # 📌 Schema
 class ContactForm(BaseModel):
     name: str
@@ -88,38 +96,89 @@ async def admin_contact(data: ContactForm):
     except Exception as e:
         conn.rollback()
         raise HTTPException(status_code=500, detail=f"เกิดข้อผิดพลาด: {str(e)}")
- 
-#📌 ดึงข้อมูลโปรไฟล์   
-@app.get("/api/profile_user/{username}")
-async def get_profile(username: str):
-    cur = conn.cursor()
-    cur.execute("SELECT username, fullname, role FROM users WHERE username = %s", (username,))
-    user = cur.fetchone()
-    if user:
-        return {"username": user[0], "fullname": user[1], "role": user[2]}
-    raise HTTPException(status_code=404, detail="ไม่พบผู้ใช้")
 
-#📌 อัปเดตโปรไฟล์
-class UpdateProfileForm(BaseModel):
-    username: str
+# 📂 ensure uploads folder
+os.makedirs("uploads", exist_ok=True)
+app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
+
+# 📌 Schema
+class UserInfo(BaseModel):
     fullname: str
-    new_password: str | None = None  # อาจมีหรือไม่มีก็ได้
+    username: str
+    role: str
+    profile_img: str = "https://via.placeholder.com/120"
 
-@app.put("/api/profile_user/update")
-async def update_profile(data: UpdateProfileForm):
+
+# ✅ API: ดึงข้อมูลผู้ login
+@app.get("/api/userinfo", response_model=UserInfo)
+async def get_userinfo(username: str):
+    cur = conn.cursor()
+    cur.execute("SELECT fullname, role, profile_img FROM users WHERE username = %s", (username,))
+    result = cur.fetchone()
+    if not result:
+        raise HTTPException(status_code=404, detail="ไม่พบผู้ใช้")
+    
+    fullname, role, profile_img = result
+    return {
+        "fullname": fullname,
+        "username": username,
+        "role": role,
+        "profile_img": profile_img or "https://via.placeholder.com/120"
+    }
+
+# ✅ Update User
+@app.post("/api/update_user")
+async def update_user(
+    username: str = Form(...),        # เอามาจาก localStorage
+    fullname: str = Form(None),
+    password: str = Form(None),
+    profile_img: UploadFile = File(None)
+):
     try:
-        cur = conn.cursor()
-        if data.new_password:
-            hashed_password = bcrypt.hashpw(data.new_password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
-            cur.execute("""
-                UPDATE users SET fullname = %s, password = %s WHERE username = %s
-            """, (data.fullname, hashed_password, data.username))
-        else:
-            cur.execute("""
-                UPDATE users SET fullname = %s WHERE username = %s
-            """, (data.fullname, data.username))
-        conn.commit()
-        return {"message": "อัปเดตโปรไฟล์สำเร็จ"}
+        with conn.cursor() as cur:
+            updates = []
+            values = []
+
+            if fullname:
+                updates.append("fullname = %s")
+                values.append(fullname)
+
+            if password:
+                hashed_password = bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
+                updates.append("password = %s")
+                values.append(hashed_password)
+
+            if profile_img:
+                upload_dir = "uploads"
+                os.makedirs(upload_dir, exist_ok=True)
+
+                # ป้องกันชื่อไฟล์ชนกัน
+                import uuid
+                filename = f"{uuid.uuid4().hex}_{profile_img.filename}"
+                file_path = os.path.join(upload_dir, filename)
+
+                with open(file_path, "wb") as buffer:
+                    shutil.copyfileobj(profile_img.file, buffer)
+
+                file_url = f"http://127.0.0.1:8000/uploads/{filename}"
+                updates.append("profile_img = %s")
+                values.append(file_url)
+
+            if not updates:
+                raise HTTPException(status_code=400, detail="ไม่มีข้อมูลใหม่สำหรับอัปเดต")
+
+            values.append(username)
+            sql = f"UPDATE users SET {', '.join(updates)} WHERE username = %s"
+            cur.execute(sql, tuple(values))
+
+            if cur.rowcount == 0:
+                raise HTTPException(status_code=404, detail="ไม่พบผู้ใช้สำหรับอัปเดต")
+
+            conn.commit()
+
+        return {"message": "อัปเดตข้อมูลสำเร็จ"}
     except Exception as e:
         conn.rollback()
         raise HTTPException(status_code=500, detail=f"เกิดข้อผิดพลาด: {str(e)}")
+
+    
