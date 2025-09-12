@@ -218,12 +218,16 @@
 
     document.getElementById("update-btn").addEventListener("click", async () => {
       const fullname = document.getElementById("fullname").value;
-      const username = localStorage.getItem("username");   // ✅ ใช้ค่า username จาก localStorage
+      const newUsername = document.getElementById("username").value;   // ✅ username ใหม่ (จาก input)
+      const oldUsername = localStorage.getItem("username");            // ✅ username เดิม
       const password = document.getElementById("new-password").value;
       const file = document.getElementById("upload-img").files[0];
 
       const formData = new FormData();
-      formData.append("username", username);   // ✅ ต้องส่งแน่ ๆ
+      formData.append("username", oldUsername);   // username เดิม
+      if (newUsername && newUsername !== oldUsername) {
+        formData.append("new_username", newUsername);   // ส่ง username ใหม่ไป backend
+      }
       if (fullname) formData.append("fullname", fullname);
       if (password) formData.append("password", password);
       if (file) formData.append("profile_img", file);
@@ -236,6 +240,12 @@
 
         const result = await res.json();
         alert(result.message || "อัปเดตสำเร็จ!");
+
+        // ถ้ามีการเปลี่ยน username → อัปเดต localStorage ด้วย
+        if (result.new_username) {
+          localStorage.setItem("username", result.new_username);
+        }
+
         location.reload(); // รีเฟรชเพื่อให้โชว์ข้อมูลใหม่
       } catch (err) {
         console.error("Update error:", err);

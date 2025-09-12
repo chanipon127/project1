@@ -2,7 +2,7 @@
 <html lang="th">
 <head>
     <meta charset="UTF-8">
-    <title>หน้าหลัก - ระบบตรวจข้อสอบอัตนัยด้วยปัญญาประดิษฐ์</title>
+    <title>หน้าหลัก - ระบบตรวจข้อสอบ AI</title>
     <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@400;600&display=swap" rel="stylesheet">
     <style>
         body {
@@ -13,7 +13,7 @@
         }
 
         .navbar {
-            background-color: #3b5bdb;
+            background-color: #4c65af;
             padding: 15px 30px;
             color: white;
             display: flex;
@@ -22,18 +22,12 @@
             box-shadow: 0 4px 6px rgba(0,0,0,0.1);
         }
 
-        .logo {
-            font-size: 22px;
-            font-weight: bold;
-        }
-
         .navbar a {
             color: white;
             text-decoration: none;
             font-weight: bold;
-            margin-left: 15px;
+            padding: 8px 16px;
             background: #5c7cfa;
-            padding: 8px 12px;
             border-radius: 6px;
             transition: background 0.3s ease;
         }
@@ -54,20 +48,19 @@
         }
 
         .image-container {
-            display: grid;
-            grid-template-columns: repeat(6, 1fr); /* Ensure 3 columns */
+            display: flex;
+            justify-content: center;
+            flex-wrap: wrap;
             gap: 30px;
-            justify-items: center;
         }
 
         .image-item {
             background: white;
-            padding: 10px;
+            padding: 20px;
             border-radius: 16px;
             box-shadow: 0 4px 10px rgba(0,0,0,0.1);
             transition: transform 0.3s ease, box-shadow 0.3s ease;
-            width: 200px;
-            text-align: center;
+            width: 220px;
         }
 
         .image-item:hover {
@@ -89,79 +82,75 @@
             font-size: 1.1rem;
             color: #444;
         }
-
-        @media (max-width: 768px) {
-            .image-container {
-                grid-template-columns: 1fr 1fr; /* 2 columns for smaller screens */
-                gap: 50px
-            }
-        }
-
-        @media (max-width: 768px) {
-            .image-container {
-                grid-template-columns: 1fr; /* 1 column for very small screens */
-                gap: 100px
-            }
-        }
     </style>
 </head>
 <body>
 
+    <!-- Navbar -->
     <div class="navbar">
-        <div class="logo">ระบบตรวจข้อสอบ AI</div>
+        <div class="logo" id="site-title">ระบบตรวจข้อสอบ AI</div>
         <div>
-            สวัสดี, <?php echo htmlspecialchars($username); ?> |
             <a href="login.html">ออกจากระบบ</a>
         </div>
     </div>
 
+    <!-- Content -->
     <div class="content">
-        <h1>เมนูสำหรับแอดมิน</h1>
+        <h1 id="welcome-message">ยินดีต้อนรับสู่ระบบตรวจข้อสอบอัตนัยด้วยปัญญาประดิษฐ์</h1>
 
         <div class="image-container">
             <div class="image-item">
                 <a href="manage_user.html">
-                    <img src="c:\Users\ACER\Downloads\manage_user.jpg" alt="จัดการผู้ใช้งาน" class="logo">
+                    <img src="manage_user.jpg" alt="จัดการผู้ใช้งาน">
                 </a>
                 <div>จัดการผู้ใช้งาน</div>
             </div>
 
             <div class="image-item">
-                <a href="ocr.html">
-                    <img src="c:\Users\ACER\Downloads\ocr.jpg" alt="OCR" class="logo">
+                <a href="create_answer.html">
+                    <img src="ocr.jpg" alt="เพิ่มคำตอบนักเรียน">
                 </a>
-                <div>OCR</div>
+                <div>เพิ่มคำตอบนักเรียน</div>
             </div>
 
             <div class="image-item">
-                <a href="maxmin_scores.html">
-                    <img src="c:\Users\ACER\Downloads\score.jpg" alt="ดูคะแนนสูงสุด-ต่ำสุด" class="logo">
+                <a href="show_answer.html">
+                    <img src="show_answer.jpg" alt="ตรวจสอบคำตอบนักเรียน">
                 </a>
-                <div>ดูคะแนนสูงสุด-ต่ำสุด</div>
-            </div>
-
-            <div class="image-item">
-                <a href="manage_exams.html">
-                    <img src="c:\Users\ACER\Downloads\manage_exam.jpg" alt="จัดการข้อสอบ" class="logo">
-                </a>
-                <div>จัดการข้อสอบ</div>
-            </div>
+                <div>ตรวจสอบคำตอบนักเรียน</div>
+            </div>            
 
             <div class="image-item">
                 <a href="view_feedback.html">
-                    <img src="c:\Users\ACER\Downloads\feedback.jpg" alt="feedback" class="logo">
+                    <img src="feedback.jpg" alt="feedback">
                 </a>
-                <div>feedback</div>
+                <div>ความคิดเห็นของผู้ใช้งาน</div>
             </div>
 
             <div class="image-item">
                 <a href="settings.html">
-                    <img src="c:\Users\ACER\Downloads\setting.jpg" alt="ตั้งค่าระบบ" class="logo">
+                    <img src="setting.jpg" alt="ตั้งค่าระบบ">
                 </a>
                 <div>ตั้งค่าระบบ</div>
             </div>
         </div>
     </div>
+
+    <!-- 📝 ดึงชื่อเว็บจาก settings.html -->
+    <script>
+        window.addEventListener('DOMContentLoaded', () => {
+            const savedTitle = localStorage.getItem('site_title');
+            if (savedTitle) {
+                // เปลี่ยนชื่อเว็บบน navbar
+                document.getElementById('site-title').textContent = savedTitle;
+                // เปลี่ยน title ของหน้า
+                document.title = 'หน้าหลัก - ' + savedTitle;
+                // เปลี่ยนข้อความต้อนรับ <h1>
+                document.getElementById('welcome-message').textContent =
+                    'ยินดีต้อนรับสู่ ' + savedTitle;
+            }
+        });
+    </script>
 
 </body>
 </html>

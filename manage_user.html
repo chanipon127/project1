@@ -67,6 +67,32 @@
     button:hover {
       opacity: 0.8;
     }
+
+    /* Modal */
+    #editModal {
+      display: none;
+      position: fixed;
+      top:0; left:0; width:100%; height:100%;
+      background: rgba(0,0,0,0.5);
+      justify-content: center;
+      align-items: center;
+    }
+    #editModalContent {
+      background: white;
+      padding: 20px;
+      border-radius: 5px;
+      width: 300px;
+      position: relative;
+    }
+    #editModalContent input {
+      width: 100%;
+      padding: 5px;
+      margin-bottom: 10px;
+    }
+    #editModalContent button {
+      margin-right: 10px;
+    }
+
     @media (max-width: 768px) {
       nav.sidebar { width: 100px; }
       nav.sidebar h2 { font-size: 16px; }
@@ -76,65 +102,158 @@
 </head>
 <body>
 
-  <nav class="sidebar">
-    <h2>เมนู</h2>
-    <a href="homepage_admin.html">HOME PAGE</a>
-    <a href="manage_user.html">จัดการผู้ใช้งาน</a>
-    <a href="ocr_page.html">แปลงข้อความจากภาพ (OCR)</a>
-    <a href="maxmin_scores.html">ดูคะแนนสูงสุด-ต่ำสุด</a>
-    <a href="view_feedback.html">ดูความคิดเห็น</a>
-    <a href="contact_admin.html">ติดต่อแอดมิน</a>
-    <a href="settings.html">ตั้งค่าระบบ</a>
-    <a href="login.html">ออกจากระบบ</a>
-  </nav>
+<nav class="sidebar">
+  <h2>เมนู</h2>
+  <a href="homepage_admin.html">HOME PAGE</a>
+  <a href="manage_user.html">จัดการผู้ใช้งาน</a>
+  <a href="ocr_page.html">แปลงข้อความจากภาพ (OCR)</a>
+  <a href="maxmin_scores.html">ดูคะแนนสูงสุด-ต่ำสุด</a>
+  <a href="view_feedback.html">ดูความคิดเห็น</a>
+  <a href="contact_admin.html">ติดต่อแอดมิน</a>
+  <a href="settings.html">ตั้งค่าระบบ</a>
+  <a href="login.html">ออกจากระบบ</a>
+</nav>
 
-  <main class="content">
-    <h1>จัดการผู้ใช้งาน</h1>
-    <button onclick="location.href='create_user.html'" style="background-color: #2196F3; color: white; border: none; padding: 10px 15px; border-radius: 5px; margin-bottom: 20px;">+ เพิ่มผู้ใช้งานใหม่</button>
+<main class="content">
+  <h1>จัดการผู้ใช้งาน</h1>
 
-    <table>
-      <thead>
+  <table>
+    <thead>
+      <tr>
+        <th>ชื่อผู้ใช้งาน</th>
+        <th>ชื่อจริง - นามสกุล</th>
+        <th>บทบาท</th>
+        <th>การดำเนินการ</th>
+      </tr>
+    </thead>
+    <tbody id="user-table-body">
+      <!-- JavaScript จะเติมข้อมูลตรงนี้ -->
+    </tbody>
+  </table>
+</main>
+
+<!-- Modal แก้ไขผู้ใช้ -->
+<div id="editModal">
+  <div id="editModalContent">
+    <h3>แก้ไขผู้ใช้งาน</h3>
+    <form id="editForm">
+      <label>Username เดิม</label>
+      <input type="text" id="oldUsername" readonly>
+      <label>Username ใหม่</label>
+      <input type="text" id="newUsername">
+      <label>Fullname</label>
+      <input type="text" id="fullname">
+      <label>Password</label>
+      <input type="password" id="password" placeholder="เว้นว่างถ้าไม่เปลี่ยน">
+      <div>
+        <button type="submit">บันทึก</button>
+        <button type="button" onclick="closeModal()">ยกเลิก</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+async function loadUsers() {
+  try {
+    const res = await fetch("http://127.0.0.1:8000/api/users");
+    const data = await res.json();
+
+    const tbody = document.getElementById("user-table-body");
+    tbody.innerHTML = "";
+
+    data.users.forEach(user => {
+      const row = `
         <tr>
-          <th>ชื่อผู้ใช้งาน</th>
-          <th>ชื่อจริง - นามสกุล</th>
-          <th>บทบาท</th>
-          <th>สถานะ</th>
-          <th>การดำเนินการ</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr>
-          <td>ja127</td>
-          <td>นายจักรินทร์ แจ่มใส</td>
-          <td>ครู</td>
-          <td>ใช้งานอยู่</td>
+          <td>${user.username}</td>
+          <td>${user.fullname}</td>
+          <td>${user.role}</td>
           <td>
-            <button class="btn-edit" title="แก้ไขผู้ใช้งานนี้">แก้ไข</button>
-            <button class="btn-delete" title="ลบผู้ใช้งานนี้" onclick="confirmDelete()">ลบ</button>
+            <button class="btn-edit" onclick="editUser('${user.username}')">แก้ไข</button>
+            <button class="btn-delete" onclick="confirmDelete('${user.username}')">ลบ</button>
           </td>
         </tr>
-        <tr>
-          <td>nat123</td>
-          <td>นางสาวณัฐธิดา บัวทอง</td>
-          <td>ผู้ดูแลระบบ</td>
-          <td>ระงับการใช้งาน</td>
-          <td>
-            <button class="btn-edit" title="แก้ไขผู้ใช้งานนี้">แก้ไข</button>
-            <button class="btn-delete" title="ลบผู้ใช้งานนี้" onclick="confirmDelete()">ลบ</button>
-          </td>
-        </tr>
-      </tbody>
-    </table>
-  </main>
+      `;
+      tbody.innerHTML += row;
+    });
+  } catch (err) {
+    console.error("โหลดข้อมูลผู้ใช้งานล้มเหลว:", err);
+  }
+}
 
-  <script>
-    function confirmDelete() {
-      if (confirm('คุณแน่ใจว่าต้องการลบผู้ใช้งานนี้?')) {
-        alert('ลบผู้ใช้งานเรียบร้อย');
-        // ในระบบจริงให้เรียก API สำหรับลบ
-      }
+async function confirmDelete(username) {
+  if (!confirm(`คุณแน่ใจว่าต้องการลบผู้ใช้ ${username} ?`)) return;
+  try {
+    const res = await fetch(`http://127.0.0.1:8000/api/delete_user?username=${username}`, { method: "DELETE" });
+    const data = await res.json();
+    if (res.ok) {
+      alert(data.message);
+      loadUsers();
+    } else {
+      alert(data.detail || "เกิดข้อผิดพลาดในการลบผู้ใช้งาน");
     }
-  </script>
+  } catch (err) {
+    console.error(err);
+    alert("เกิดข้อผิดพลาดในการเชื่อมต่อ API");
+  }
+}
+
+// เปิด modal และใส่ข้อมูลเดิม
+function editUser(oldUsername) {
+  const row = Array.from(document.querySelectorAll("#user-table-body tr"))
+                  .find(tr => tr.children[0].textContent === oldUsername);
+  if (!row) return;
+
+  document.getElementById("oldUsername").value = oldUsername;
+  document.getElementById("newUsername").value = oldUsername;
+  document.getElementById("fullname").value = row.children[1].textContent;
+  document.getElementById("password").value = "";
+
+  document.getElementById("editModal").style.display = "flex";
+}
+
+function closeModal() {
+  document.getElementById("editModal").style.display = "none";
+}
+
+// ส่งข้อมูลแก้ไข
+document.getElementById("editForm").addEventListener("submit", async (e) => {
+  e.preventDefault();
+
+  const oldUsername = document.getElementById("oldUsername").value;
+  const newUsername = document.getElementById("newUsername").value;
+  const fullname = document.getElementById("fullname").value;
+  const password = document.getElementById("password").value;
+
+  const formData = new FormData();
+  formData.append("username", oldUsername);
+  if (newUsername) formData.append("new_username", newUsername);
+  if (fullname) formData.append("fullname", fullname);
+  if (password) formData.append("password", password);
+
+  try {
+    const res = await fetch("http://127.0.0.1:8000/api/update_user", {
+      method: "POST",
+      body: formData
+    });
+    const data = await res.json();
+    if (res.ok) {
+      alert(data.message);
+      localStorage.setItem("username", data.new_username);
+      loadUsers();
+      closeModal();
+    } else {
+      alert(data.detail || "เกิดข้อผิดพลาดในการอัปเดต");
+    }
+  } catch (err) {
+    console.error(err);
+    alert("เชื่อมต่อ API ล้มเหลว");
+  }
+});
+
+// โหลดข้อมูลทันทีเมื่อเปิดหน้า
+document.addEventListener("DOMContentLoaded", loadUsers);
+</script>
 
 </body>
 </html>

@@ -6,7 +6,11 @@ from datetime import datetime
 import bcrypt
 import os
 import shutil
+from fastapi import Query
+from typing import List
+from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
+from typing import Optional
 
 app = FastAPI()
 
@@ -129,7 +133,8 @@ async def get_userinfo(username: str):
 # ✅ Update User
 @app.post("/api/update_user")
 async def update_user(
-    username: str = Form(...),        # เอามาจาก localStorage
+    username: str = Form(...),  # เอามาจาก localStorage
+    new_username: str = Form(None),   # username ใหม่
     fullname: str = Form(None),
     password: str = Form(None),
     profile_img: UploadFile = File(None)
@@ -139,6 +144,10 @@ async def update_user(
             updates = []
             values = []
 
+            if new_username:
+                updates.append("username = %s")
+                values.append(new_username)
+                
             if fullname:
                 updates.append("fullname = %s")
                 values.append(fullname)
@@ -176,9 +185,171 @@ async def update_user(
 
             conn.commit()
 
-        return {"message": "อัปเดตข้อมูลสำเร็จ"}
+        # ถ้าเปลี่ยน username ต้องอัปเดต localStorage ด้วย
+        return {
+            "message": "อัปเดตข้อมูลสำเร็จ",
+            "new_username": new_username if new_username else username
+        }
     except Exception as e:
         conn.rollback()
         raise HTTPException(status_code=500, detail=f"เกิดข้อผิดพลาด: {str(e)}")
 
+# 📌 API: ดึงผู้ใช้งานทั้งหมด
+@app.get("/api/users")
+async def get_users():
+    try:
+        with conn.cursor() as cur:
+            cur.execute("SELECT username, fullname, role FROM users ORDER BY created_at DESC")
+            rows = cur.fetchall()
+
+        users = []
+        for row in rows:
+            username, fullname, role = row
+            users.append({
+                "username": username,
+                "fullname": fullname,
+                "role": role
+            })
+
+        return {"users": users}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"เกิดข้อผิดพลาด: {str(e)}")
+
+#ลบผู้ใช้งาน
+@app.delete("/api/delete_user")
+async def delete_user(username: str):
+    try:
+        with conn.cursor() as cur:
+            cur.execute("DELETE FROM users WHERE username = %s", (username,))
+            if cur.rowcount == 0:
+                raise HTTPException(status_code=404, detail="ไม่พบผู้ใช้งาน")
+            conn.commit()
+        return {"message": f"ลบผู้ใช้งาน {username} สำเร็จ"}
+    except Exception as e:
+        conn.rollback()
+        raise HTTPException(status_code=500, detail=f"เกิดข้อผิดพลาด: {str(e)}")
+
+# 🔹 ดึงปีการศึกษาไม่ซ้ำ
+@app.get("/exam_years", response_model=List[int])
+def get_exam_years():
+    cursor = conn.cursor()
+    cursor.execute('SELECT DISTINCT exam_year FROM exam ORDER BY exam_year DESC')
+    years = [row[0] for row in cursor.fetchall()]
+    return years
+
+
+# 🔹 ดึงกลุ่มการสอบไม่ซ้ำ
+@app.get("/group_ids", response_model=List[str])
+def get_group_ids():
+    cursor = conn.cursor()
+    cursor.execute('SELECT DISTINCT group_id FROM exam ORDER BY group_id')
+    groups = [row[0] for row in cursor.fetchall()]
+    return groups
+
+# 📌 ดึง feedback ทั้งหมด
+@app.get("/api/contact-admin-all")
+async def get_all_contacts(): 
+    try:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT contact_id, username, name, message, created_at
+            FROM admin_contact
+            ORDER BY created_at DESC
+        """)
+        rows = cursor.fetchall()
+        cursor.close()
+        # ✅ แปลง tuple → dict
+        feedback_list = [
+            {
+                "contact_id": r[0],
+                "username": r[1],
+                "name": r[2],
+                "message": r[3],
+                "created_at": r[4]
+            }
+            for r in rows
+        ]
+
+        return feedback_list
     
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+# ------------------ ลบ feedback ------------------
+@app.delete("/api/contact-admin/{contact_id}")
+async def delete_feedback(contact_id: int):
+    try:
+        #conn = get_connection()
+        cur = conn.cursor()
+        # ตรวจสอบว่ามี contact_id นี้ไหม
+        cur.execute("SELECT contact_id FROM admin_contact WHERE contact_id = %s", (contact_id,))
+        if cur.fetchone() is None:
+            cur.close()
+            conn.close()
+            raise HTTPException(status_code=404, detail="ไม่พบข้อความนี้")
+
+        # ลบข้อความ
+        cur.execute("DELETE FROM admin_contact WHERE contact_id = %s", (contact_id,))
+        conn.commit()
+        cur.close()
+        conn.close()
+
+        return {"message": "ลบข้อความเรียบร้อย"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+# ----------------- Pydantic Model -----------------
+class Answer(BaseModel):
+    student_id: int
+    group_id: str
+    exam_year: int
+    essay_text: str
+    essay_analysis: str
+    status: str
+
+
+# -----------------------
+# POST เพิ่มคำตอบ
+@app.post("/api/answers")
+def add_answer(answer: Answer):
+    try:
+        cursor = conn.cursor()
+        cursor.execute("""
+            INSERT INTO answer (student_id, group_id, exam_year, essay_text, essay_analysis, status)
+            VALUES (%s, %s, %s, %s, %s, %s)
+        """, (answer.student_id, answer.group_id, answer.exam_year, answer.essay_text, answer.essay_analysis, answer.status))
+        conn.commit()
+        return {"message": "บันทึกคำตอบสำเร็จ"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        cursor.close()
+
+# GET ดึงคำตอบทั้งหมด
+@app.get("/api/answers-all")
+def get_all_answers():
+    try:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT answer_id, student_id, exam_year, essay_text, essay_analysis, group_id, status
+            FROM answer
+            ORDER BY answer_id DESC
+        """)
+        rows = cursor.fetchall()
+        cursor.close()
+        results = []
+        for r in rows:
+            results.append({
+                "answer_id": r[0],
+                "student_id": r[1],
+                "exam_year": r[2],
+                "essay_text": r[3],
+                "essay_analysis": r[4],
+                "group_id": r[5],
+                "status": r[6]
+            })
+        return results
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        cursor.close()
