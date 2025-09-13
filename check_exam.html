@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="th">
+
 <head>
   <meta charset="UTF-8">
   <title>ระบบตรวจข้อสอบ</title>
@@ -9,6 +10,7 @@
       margin: 0;
       background-color: #f5f5f5;
     }
+
     /* Navbar */
     .navbar {
       background-color: #4c65af;
@@ -19,7 +21,8 @@
       align-items: center;
     }
 
-    .navbar-left, .navbar-right {
+    .navbar-left,
+    .navbar-right {
       display: flex;
       align-items: center;
     }
@@ -60,7 +63,8 @@
       margin-bottom: 20px;
     }
 
-    select, button {
+    select,
+    button {
       padding: 5px 10px;
     }
 
@@ -71,7 +75,8 @@
       background-color: white;
     }
 
-    th, td {
+    th,
+    td {
       border: 1px solid #ddd;
       padding: 10px;
       text-align: center;
@@ -105,7 +110,8 @@
     }
   </style>
 </head>
-<body> 
+
+<body>
 
   <!-- Navbar -->
   <div class="navbar">
@@ -150,10 +156,9 @@
     <table>
       <thead>
         <tr>
-          <th>ชื่อ นามสกุล</th>
-          <th>โรงเรียน</th>
+          <th>รหัสนักเรียน</th>
           <th>ชั้นเรียน</th>
-          <th>คะแนน</th>
+          <th>ปีการศึกษา</th>
           <th>สถานะ</th>
           <th>ผลคะแนน</th>
         </tr>
@@ -163,32 +168,89 @@
   </div>
 
   <script>
-    function loadData() {
-      const year = document.getElementById('year').value;
-      const group = document.getElementById('group').value;
+    async function loadFilters() {
+      try {
+        // ดึงปีการศึกษา
+        const yearRes = await fetch("http://127.0.0.1:8000/exam_years");
+        const years = await yearRes.json();
+        const yearSelect = document.getElementById("year");
+        yearSelect.innerHTML = '<option value="">-- เลือกปีการศึกษา --</option>';
+        years.forEach(y => {
+          const option = document.createElement("option");
+          option.value = y;
+          option.textContent = y;
+          yearSelect.appendChild(option);
+        });
 
-      fetch(`http://localhost:3000/students?year=${year}&group=${group}`)
-        .then(response => response.json())
-        .then(data => {
-          const tbody = document.getElementById('studentTableBody');
-          tbody.innerHTML = '';
-          data.forEach(student => {
-            const row = document.createElement('tr');
-            row.innerHTML = `
-              <td>${student.first_name},${student.last_name}</td>
-              <td>${student.school}</td>
-              <td>${student.level}</td>
-              <td>${student.total_score}</td>
-              <td class="${student.status === 'ตรวจแล้ว' ? 'status-checked' : 'status-unchecked'}">
-                ${student.status}
-              </td>
-              <td>${student.status === 'ตรวจแล้ว' ? '<a class="view-link" href="view_score.html">ดูคะแนน</a>' : '-'}</td>
-            `;
-            tbody.appendChild(row);
-          });
-        })
-        .catch(err => alert('เกิดข้อผิดพลาด'));
+        // ดึงกลุ่มการสอบ
+        const groupRes = await fetch("http://127.0.0.1:8000/group_ids");
+        const groups = await groupRes.json();
+        const groupSelect = document.getElementById("group");
+        groupSelect.innerHTML = '<option value="">-- เลือกกลุ่มการสอบ --</option>';
+        groups.forEach(g => {
+          const option = document.createElement("option");
+          option.value = g;
+          option.textContent = g;
+          groupSelect.appendChild(option);
+        });
+
+      } catch (err) {
+        alert("โหลดตัวเลือกปี/กลุ่มไม่สำเร็จ: " + err.message);
+      }
     }
+
+    async function loadData() {
+      try {
+        const year = document.getElementById("year").value;
+        const group = document.getElementById("group").value;
+
+        const res = await fetch("http://127.0.0.1:8000/api/answers-all");
+        if (!res.ok) throw new Error("โหลดข้อมูลไม่สำเร็จ");
+        let data = await res.json();
+
+        // 🔹 กรองข้อมูลตามตัวเลือก
+        if (year) {
+          data = data.filter(item => String(item.exam_year) === year);
+        }
+        if (group) {
+          data = data.filter(item => String(item.group_id) === group);
+        }
+
+        const tbody = document.getElementById("studentTableBody");
+        tbody.innerHTML = "";
+
+        if (data.length === 0) {
+          tbody.innerHTML = `<tr><td colspan="5">ไม่พบข้อมูล</td></tr>`;
+          return;
+        }
+
+        data.forEach(answer => {
+          const row = document.createElement("tr");
+          row.innerHTML = `
+            <td>${answer.student_id}</td>
+            <td>${answer.group_id}</td>
+            <td>${answer.exam_year}</td>
+            <td class="${answer.status === 'ตรวจแล้ว' ? 'status-checked' : 'status-unchecked'}">
+              ${answer.status}
+            </td>
+            <td>
+              ${answer.status === "ตรวจแล้ว"
+                ? `<a class="view-link" href="view_score.html?answer_id=${answer.answer_id}">ดูคะแนน</a>`
+                : `<button onclick="startCheck(${answer.answer_id})">ตรวจ</button>`}
+            </td>
+          `;
+          tbody.appendChild(row);
+        });
+
+      } catch (err) {
+        alert("เกิดข้อผิดพลาดในการโหลดข้อมูล: " + err.message);
+      }
+    }
+
+    // โหลดตัวเลือก dropdown เมื่อเข้าเพจ
+    document.addEventListener("DOMContentLoaded", loadFilters);
   </script>
+
 </body>
+
 </html>

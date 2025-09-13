@@ -1,3 +1,4 @@
+import json
 from fastapi import FastAPI, Request, Form, File, UploadFile, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -353,3 +354,46 @@ def get_all_answers():
         raise HTTPException(status_code=500, detail=str(e))
     finally:
         cursor.close()
+
+# 🔹 Pydantic Model
+# -------------------------------
+class Answer(BaseModel):
+    student_id: int
+    group_id: str
+    exam_year: int
+    essay_text: str
+    essay_analysis: str
+    status: str
+
+
+# -------------------------------
+# ✅ API: ดึงคำตอบทั้งหมด
+# -------------------------------
+@app.get("/api/answers-all")
+def get_all_answers():
+    try:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT answer_id, student_id, exam_year, essay_text, essay_analysis, group_id, status
+            FROM answer
+            ORDER BY answer_id DESC
+        """)
+        rows = cursor.fetchall()
+        cursor.close()
+        results = [
+            {
+                "answer_id": r[0],
+                "student_id": r[1],
+                "exam_year": r[2],
+                "essay_text": r[3],
+                "essay_analysis": r[4],
+                "group_id": r[5],
+                "status": r[6]
+            }
+            for r in rows
+        ]
+        return results
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+

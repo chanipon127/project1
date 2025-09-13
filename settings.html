@@ -11,13 +11,12 @@
       background: #f0f2f5;
     }
 
-    /* Wrapper สำหรับจัดวาง sidebar และ content */
     .wrapper {
       display: flex;
       min-height: 100vh;
     }
 
-    /* Sidebar สำหรับเมนู */
+    /* Sidebar */
     .sidebar {
       width: 220px;
       background: #333;
@@ -49,27 +48,28 @@
       background: #555;
     }
 
-    /* Main content area */
+    /* Main content */
     .main-content {
       margin-left: 240px;
       flex: 1;
       padding: 20px;
     }
 
-    /* Navbar สำหรับหัวข้อ */
     .navbar {
       background-color: #3b5bdb;
       color: white;
       padding: 15px 30px;
       font-size: 20px;
       font-weight: bold;
+      border-radius: 8px 8px 0 0;
     }
 
-    /* Tabs สำหรับการเลือกหมวด */
+    /* Tabs */
     .tabs {
       display: flex;
       background: #ddd;
       overflow-x: auto;
+      border-bottom: 1px solid #bbb;
     }
 
     .tab {
@@ -91,26 +91,29 @@
       border-bottom: 3px solid #3b5bdb;
     }
 
-    /* Tab content */
     .tab-content {
       padding: 20px;
       display: none;
       background: white;
+      border-radius: 0 0 8px 8px;
     }
 
     .tab-content.active {
       display: block;
     }
 
+    /* Form */
     form label {
       display: block;
       margin: 15px 0 5px;
     }
 
-    input, select {
+    input {
       width: 300px;
       padding: 8px;
       margin-top: 5px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
     }
 
     button {
@@ -127,7 +130,7 @@
       background: #2f44a1;
     }
 
-    /* Mobile responsiveness */
+    /* Responsive */
     @media (max-width: 768px) {
       .wrapper {
         flex-direction: column;
@@ -158,116 +161,66 @@
 <body>
 
 <div class="wrapper">
-  <!-- Sidebar Menu -->
+  <!-- Sidebar -->
   <nav class="sidebar">
     <h2>เมนู</h2>
     <a href="homepage_admin.html">HOME PAGE</a>
     <a href="manage_user.html">จัดการผู้ใช้งาน</a>
-    <a href="ocr_page.html">แปลงข้อความจากภาพ (OCR)</a>
-    <a href="maxmin_scores.html">ดูคะแนนสูงสุด-ต่ำสุด</a>
-    <a href="view_feedback.html">ดูความคิดเห็น</a>
-    <a href="contact_admin.html">ติดต่อแอดมิน</a>
+    <a href="create_answer.html">เพิ่มคำตอบนักเรียน</a>
+    <a href="show_answer.html">ตรวจสอบคำตอบนักเรียน</a>    
+    <a href="view_feedback.html">ตรวจสอบความคิดเห็นของผู้ใช้งาน</a>
     <a href="settings.html">ตั้งค่าระบบ</a>
     <a href="login.html">ออกจากระบบ</a>
   </nav>
 
   <!-- Main Content -->
   <div class="main-content">
-    <div class="navbar">ตั้งค่าระบบสำหรับแอดมิน</div>
+    <!-- แสดงชื่อเว็บไซต์ที่ตั้งไว้ -->
+    <div class="navbar" id="site-title-display">ระบบตรวจข้อสอบอัตนัยด้วย AI</div>
 
-    <!-- Tab Navigation -->
+    <!-- Tabs -->
     <div class="tabs">
-      <div class="tab active" onclick="openTab('exam-settings')">ตั้งค่าการสอบ</div>
-      <div class="tab" onclick="openTab('score-settings')">ตั้งค่าคะแนน</div>
-      <div class="tab" onclick="openTab('user-settings')">ตั้งค่าผู้ใช้งาน</div>
-      <div class="tab" onclick="openTab('site-settings')">ตั้งค่าเว็บไซต์</div>
+      <div class="tab active" data-tab="site-settings" onclick="openTab(this)">ตั้งค่าเว็บไซต์</div>
     </div>
 
     <!-- Tab Content -->
-    <div id="exam-settings" class="tab-content active">
-      <h2>ตั้งค่าการสอบ</h2>
-      <form>
-        <label>เวลาสอบต่อข้อ (วินาที)</label>
-        <input type="number" name="time_per_question" value="60">
-
-        <label>เวลาสอบรวม (นาที)</label>
-        <input type="number" name="total_exam_time" value="60">
-
-        <label>จำนวนครั้งที่สอบได้</label>
-        <input type="number" name="max_attempts" value="3">
-
+    <div id="site-settings" class="tab-content active">
+      <h2>ตั้งค่าเว็บไซต์</h2>
+      <form onsubmit="saveSiteTitle(event)">
+        <label>ชื่อเว็บไซต์</label>
+        <input type="text" name="site_title" value="ระบบตรวจข้อสอบอัตนัยด้วย AI">
         <button type="submit">บันทึกการตั้งค่า</button>
       </form>
     </div>
-
-    <div id="score-settings" class="tab-content">
-      <h2>ตั้งค่าคะแนน</h2>
-      <form>
-        <label>รูปแบบคะแนน</label>
-        <select name="score_format">
-          <option value="percentage">เปอร์เซ็นต์</option>
-          <option value="points">คะแนนเต็ม</option>
-        </select>
-
-        <label>คะแนนผ่านขั้นต่ำ (%)</label>
-        <input type="number" name="passing_score" value="60">
-
-        <button type="submit">บันทึกการตั้งค่า</button>
-      </form>
-    </div>
-
-    <div id="user-settings" class="tab-content">
-        <h2>ตั้งค่าผู้ใช้งาน</h2>
-        <form>
-          <label>อนุญาตให้สมัครสมาชิกเอง</label>
-          <select name="allow_registration">
-            <option value="yes">อนุญาต</option>
-            <option value="no">ไม่อนุญาต</option>
-          </select>
-          <label>กำหนดบทบาทเริ่มต้นผู้ใช้ใหม่</label>
-    <select name="default_role">
-      <option value="Examiner">ผู้ตรวจข้อสอบ</option>
-      <option value="Admin">แอดมิน</option>
-    </select>
-
-    <button type="submit">บันทึกการตั้งค่า</button>
-  </form>
-</div>
-
-<div id="site-settings" class="tab-content">
-    <h2>ตั้งค่าเว็บไซต์</h2>
-    <form>
-      <label>ชื่อเว็บไซต์</label>
-      <input type="text" name="site_title" value="ระบบตรวจข้อสอบอัตนัยด้วย AI">
-  
-      <label>ภาษาเว็บไซต์</label>
-      <select name="site_language">
-        <option value="th">ไทย</option>
-        <option value="en">English</option>
-      </select>
-  
-      <button type="submit">บันทึกการตั้งค่า</button>
-    </form>
-  </div>
   </div>
 </div>
 
 <script>
-function openTab(tabId) {
-  const tabs = document.querySelectorAll('.tab');
-  const contents = document.querySelectorAll('.tab-content');
+function openTab(tabElement) {
+  const tabId = tabElement.dataset.tab;
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
 
-  tabs.forEach(tab => {
-    tab.classList.remove('active');
-  });
-
-  contents.forEach(content => {
-    content.classList.remove('active');
-  });
-
-  document.querySelector('.tab[onclick="openTab(\'' + tabId + '\')"]').classList.add('active');
+  tabElement.classList.add('active');
   document.getElementById(tabId).classList.add('active');
 }
+
+function saveSiteTitle(event) {
+  event.preventDefault();
+  const title = document.querySelector('input[name="site_title"]').value;
+  localStorage.setItem('site_title', title);
+  document.getElementById('site-title-display').textContent = title;
+  alert('บันทึกชื่อเว็บไซต์เรียบร้อย');
+}
+
+// โหลดชื่อเว็บที่เคยบันทึกไว้เมื่อเปิดหน้า
+window.addEventListener('DOMContentLoaded', () => {
+  const savedTitle = localStorage.getItem('site_title');
+  if (savedTitle) {
+    document.querySelector('input[name="site_title"]').value = savedTitle;
+    document.getElementById('site-title-display').textContent = savedTitle;
+  }
+});
 </script>
 
 </body>
