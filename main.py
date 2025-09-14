@@ -12,6 +12,8 @@ from typing import List
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from typing import Optional
+from ai_scoring import evaluate_single_answer
+
 
 app = FastAPI()
 
@@ -374,7 +376,7 @@ def get_all_answers():
     try:
         cursor = conn.cursor()
         cursor.execute("""
-            SELECT answer_id, student_id, exam_year, essay_text, essay_analysis, group_id, status
+            SELECT answer_id, student_id, exam_year, essay_text, essay_analysis, group_id, status,score
             FROM answer
             ORDER BY answer_id DESC
         """)
@@ -396,4 +398,43 @@ def get_all_answers():
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+
+# ✅ API: ตรวจคำตอบด้วย AI
+# -------------------------------
+@app.post("/api/check-answer/{answer_id}")
+async def check_answer(answer_id: int):
+    try:
+        cursor = conn.cursor()
+        cursor.execute("SELECT essay_text FROM answer WHERE answer_id = %s", (answer_id,))
+        row = cursor.fetchone()
+        if not row:
+            raise HTTPException(status_code=404, detail="ไม่พบคำตอบ")
+
+        essay_text = row[0]
+
+        # 🔹 ตรวจด้วย AI
+        result = evaluate_single_answer(essay_text)
+
+        if isinstance(result, dict):
+            result_dict = result
+        else:
+            result_dict = json.loads(result)
+
+        total_score = result_dict["คะแนนรวมทั้งหมด"]
+
+        # 🔹 บันทึกลง DB 
+        cursor.execute("""
+            UPDATE answer 
+            SET score=%s, status='ตรวจแล้ว'
+            WHERE answer_id = %s
+        """, (total_score, answer_id))
+        conn.commit()
+
+        return {"message": "ตรวจคำตอบสำเร็จ", "score": total_score}
+
+    except Exception as e:
+        conn.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        cursor.close()
 

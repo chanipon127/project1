@@ -11,19 +11,12 @@
       background-color: #f5f5f5;
     }
 
-    /* Navbar */
     .navbar {
       background-color: #4c65af;
       color: white;
       padding: 10px 30px;
       display: flex;
       justify-content: space-between;
-      align-items: center;
-    }
-
-    .navbar-left,
-    .navbar-right {
-      display: flex;
       align-items: center;
     }
 
@@ -50,12 +43,10 @@
       border-radius: 50%;
     }
 
-    /* Container */
     .container {
       padding: 20px;
     }
 
-    /* Filter Section */
     .filters {
       display: flex;
       align-items: center;
@@ -68,7 +59,6 @@
       padding: 5px 10px;
     }
 
-    /* Table */
     table {
       border-collapse: collapse;
       width: 100%;
@@ -94,15 +84,6 @@
     .status-unchecked {
       color: red;
       font-weight: bold;
-    }
-
-    a.view-link {
-      color: #007bff;
-      text-decoration: none;
-    }
-
-    a.view-link:hover {
-      text-decoration: underline;
     }
 
     h2 {
@@ -140,13 +121,13 @@
     <div class="filters">
       <label>ปีการศึกษา:
         <select id="year">
-          <option value="exam-_year"></option>
+          <option value="">-- เลือกปีการศึกษา --</option>
         </select>
       </label>
 
       <label>กลุ่มการสอบ:
         <select id="group">
-          <option value="group_id"></option>
+          <option value="">-- เลือกกลุ่มการสอบ --</option>
         </select>
       </label>
 
@@ -168,11 +149,17 @@
   </div>
 
   <script>
+    let allData = []; // เก็บข้อมูลทั้งหมดจาก API
+
+    // โหลดปีและกลุ่มจาก /api/answers-all
     async function loadFilters() {
       try {
-        // ดึงปีการศึกษา
-        const yearRes = await fetch("http://127.0.0.1:8000/exam_years");
-        const years = await yearRes.json();
+        const res = await fetch("http://127.0.0.1:8000/api/answers-all");
+        if (!res.ok) throw new Error("โหลดข้อมูลไม่สำเร็จ");
+        allData = await res.json();
+
+        // ดึงปีการศึกษาแบบ unique
+        const years = [...new Set(allData.map(item => item.exam_year))];
         const yearSelect = document.getElementById("year");
         yearSelect.innerHTML = '<option value="">-- เลือกปีการศึกษา --</option>';
         years.forEach(y => {
@@ -182,9 +169,8 @@
           yearSelect.appendChild(option);
         });
 
-        // ดึงกลุ่มการสอบ
-        const groupRes = await fetch("http://127.0.0.1:8000/group_ids");
-        const groups = await groupRes.json();
+        // ดึงกลุ่มการสอบแบบ unique
+        const groups = [...new Set(allData.map(item => item.group_id))];
         const groupSelect = document.getElementById("group");
         groupSelect.innerHTML = '<option value="">-- เลือกกลุ่มการสอบ --</option>';
         groups.forEach(g => {
@@ -193,63 +179,93 @@
           option.textContent = g;
           groupSelect.appendChild(option);
         });
-
       } catch (err) {
         alert("โหลดตัวเลือกปี/กลุ่มไม่สำเร็จ: " + err.message);
       }
     }
 
-    async function loadData() {
+    // โหลดข้อมูลนักเรียน
+    function loadData() {
+      const year = document.getElementById("year").value;
+      const group = document.getElementById("group").value;
+
+      let data = [...allData];
+      if (year) data = data.filter(item => String(item.exam_year) === year);
+      if (group) data = data.filter(item => String(item.group_id) === group);
+
+      const tbody = document.getElementById("studentTableBody");
+      tbody.innerHTML = "";
+
+      if (data.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="5">ไม่พบข้อมูล</td></tr>`;
+        return;
+      }
+
+      data.forEach(ans => {
+        const row = document.createElement("tr");
+        row.innerHTML = `
+        <td>${ans.student_id}</td>
+        <td>${ans.group_id}</td>
+        <td>${ans.exam_year}</td>
+        <td class="status-col ${ans.status === "ตรวจแล้ว" ? "status-checked" : "status-unchecked"}">
+          ${ans.status}
+        </td>
+        <td>
+          ${ans.status === "ตรวจแล้ว"
+            ? `<button onclick="viewScore(${ans.answer_id})">ดูผล</button>`
+            : `<button onclick="startCheck(${ans.answer_id}, this)">ตรวจ</button>`}
+        </td>
+      `;
+        tbody.appendChild(row);
+      });
+    }
+
+    // ตรวจคำตอบนักเรียน
+    async function startCheck(answerId, btn) {
+      btn.disabled = true;
+      btn.innerText = "กำลังตรวจ...";
       try {
-        const year = document.getElementById("year").value;
-        const group = document.getElementById("group").value;
+        const res = await fetch(`http://127.0.0.1:8000/api/check-answer/${answerId}`, { method: "POST" });
+        const result = await res.json();
 
-        const res = await fetch("http://127.0.0.1:8000/api/answers-all");
-        if (!res.ok) throw new Error("โหลดข้อมูลไม่สำเร็จ");
-        let data = await res.json();
+        if (res.ok) {
+          // อัปเดตสถานะ
+          const statusTd = btn.closest("tr").querySelector(".status-col");
+          statusTd.classList.remove("status-unchecked");
+          statusTd.classList.add("status-checked");
+          statusTd.innerHTML = `<span style="color: green; font-weight:bold;">ตรวจแล้ว</span>`;
 
-        // 🔹 กรองข้อมูลตามตัวเลือก
-        if (year) {
-          data = data.filter(item => String(item.exam_year) === year);
+          // อัปเดตคอลัมน์ action
+          const actionTd = btn.parentElement;
+          actionTd.innerHTML = "";
+          const viewBtn = document.createElement("button");
+          viewBtn.textContent = "ดูผล";
+          viewBtn.addEventListener("click", () => viewScore(answerId));
+          actionTd.appendChild(viewBtn);
+
+          // ไปยังหน้าดูผลอัตโนมัติทันทีถ้าต้องการ
+          viewScore(answerId);
+        } else {
+          alert(result.detail || "ตรวจไม่สำเร็จ");
+          btn.disabled = false;
+          btn.innerText = "ตรวจ";
         }
-        if (group) {
-          data = data.filter(item => String(item.group_id) === group);
-        }
-
-        const tbody = document.getElementById("studentTableBody");
-        tbody.innerHTML = "";
-
-        if (data.length === 0) {
-          tbody.innerHTML = `<tr><td colspan="5">ไม่พบข้อมูล</td></tr>`;
-          return;
-        }
-
-        data.forEach(answer => {
-          const row = document.createElement("tr");
-          row.innerHTML = `
-            <td>${answer.student_id}</td>
-            <td>${answer.group_id}</td>
-            <td>${answer.exam_year}</td>
-            <td class="${answer.status === 'ตรวจแล้ว' ? 'status-checked' : 'status-unchecked'}">
-              ${answer.status}
-            </td>
-            <td>
-              ${answer.status === "ตรวจแล้ว"
-                ? `<a class="view-link" href="view_score.html?answer_id=${answer.answer_id}">ดูคะแนน</a>`
-                : `<button onclick="startCheck(${answer.answer_id})">ตรวจ</button>`}
-            </td>
-          `;
-          tbody.appendChild(row);
-        });
-
       } catch (err) {
-        alert("เกิดข้อผิดพลาดในการโหลดข้อมูล: " + err.message);
+        alert("เกิดข้อผิดพลาด: " + err.message);
+        btn.disabled = false;
+        btn.innerText = "ตรวจ";
       }
     }
 
-    // โหลดตัวเลือก dropdown เมื่อเข้าเพจ
+    // ไปยังหน้าดูผล
+    function viewScore(answerId) {
+      window.location.href = `view_score.html?answer_id=${answerId}`;
+    }
+
+    // โหลด filter ตอนเปิดเพจ
     document.addEventListener("DOMContentLoaded", loadFilters);
   </script>
+
 
 </body>
 
