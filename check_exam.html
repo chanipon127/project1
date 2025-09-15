@@ -151,48 +151,61 @@
   <script>
     let allData = []; // เก็บข้อมูลทั้งหมดจาก API
 
-    // โหลดปีและกลุ่มจาก /api/answers-all
+    // โหลดตัวเลือกปี/กลุ่ม
     async function loadFilters() {
       try {
         const res = await fetch("http://127.0.0.1:8000/api/answers-all");
         if (!res.ok) throw new Error("โหลดข้อมูลไม่สำเร็จ");
         allData = await res.json();
 
-        // ดึงปีการศึกษาแบบ unique
-        const years = [...new Set(allData.map(item => item.exam_year))];
-        const yearSelect = document.getElementById("year");
-        yearSelect.innerHTML = '<option value="">-- เลือกปีการศึกษา --</option>';
-        years.forEach(y => {
-          const option = document.createElement("option");
-          option.value = y;
-          option.textContent = y;
-          yearSelect.appendChild(option);
-        });
+        // เก็บข้อมูลดิบไว้ใน sessionStorage
+        sessionStorage.setItem("allData", JSON.stringify(allData));
 
-        // ดึงกลุ่มการสอบแบบ unique
-        const groups = [...new Set(allData.map(item => item.group_id))];
-        const groupSelect = document.getElementById("group");
-        groupSelect.innerHTML = '<option value="">-- เลือกกลุ่มการสอบ --</option>';
-        groups.forEach(g => {
-          const option = document.createElement("option");
-          option.value = g;
-          option.textContent = g;
-          groupSelect.appendChild(option);
-        });
+        populateFilters();
+        restoreSelectionsAndTable(); // กู้ค่าที่เคยเลือกไว้
       } catch (err) {
         alert("โหลดตัวเลือกปี/กลุ่มไม่สำเร็จ: " + err.message);
       }
     }
 
-    // โหลดข้อมูลนักเรียน
+    function populateFilters() {
+      const years = [...new Set(allData.map(item => item.exam_year))];
+      const yearSelect = document.getElementById("year");
+      yearSelect.innerHTML = '<option value="">-- เลือกปีการศึกษา --</option>';
+      years.forEach(y => {
+        const option = document.createElement("option");
+        option.value = y;
+        option.textContent = y;
+        yearSelect.appendChild(option);
+      });
+
+      const groups = [...new Set(allData.map(item => item.group_id))];
+      const groupSelect = document.getElementById("group");
+      groupSelect.innerHTML = '<option value="">-- เลือกกลุ่มการสอบ --</option>';
+      groups.forEach(g => {
+        const option = document.createElement("option");
+        option.value = g;
+        option.textContent = g;
+        groupSelect.appendChild(option);
+      });
+    }
+
     function loadData() {
       const year = document.getElementById("year").value;
       const group = document.getElementById("group").value;
+
+      // เก็บค่าที่เลือกไว้
+      sessionStorage.setItem("selectedYear", year);
+      sessionStorage.setItem("selectedGroup", group);
 
       let data = [...allData];
       if (year) data = data.filter(item => String(item.exam_year) === year);
       if (group) data = data.filter(item => String(item.group_id) === group);
 
+      renderTable(data);
+    }
+
+    function renderTable(data) {
       const tbody = document.getElementById("studentTableBody");
       tbody.innerHTML = "";
 
@@ -204,23 +217,22 @@
       data.forEach(ans => {
         const row = document.createElement("tr");
         row.innerHTML = `
-        <td>${ans.student_id}</td>
-        <td>${ans.group_id}</td>
-        <td>${ans.exam_year}</td>
-        <td class="status-col ${ans.status === "ตรวจแล้ว" ? "status-checked" : "status-unchecked"}">
-          ${ans.status}
-        </td>
-        <td>
-          ${ans.status === "ตรวจแล้ว"
+          <td>${ans.student_id}</td>
+          <td>${ans.group_id}</td>
+          <td>${ans.exam_year}</td>
+          <td class="status-col ${ans.status === "ตรวจแล้ว" ? "status-checked" : "status-unchecked"}">
+            ${ans.status}
+          </td>
+          <td>
+            ${ans.status === "ตรวจแล้ว"
             ? `<button onclick="viewScore(${ans.answer_id})">ดูผล</button>`
             : `<button onclick="startCheck(${ans.answer_id}, this)">ตรวจ</button>`}
-        </td>
-      `;
+          </td>
+        `;
         tbody.appendChild(row);
       });
     }
 
-    // ตรวจคำตอบนักเรียน
     async function startCheck(answerId, btn) {
       btn.disabled = true;
       btn.innerText = "กำลังตรวจ...";
@@ -229,13 +241,12 @@
         const result = await res.json();
 
         if (res.ok) {
-          // อัปเดตสถานะ
+
           const statusTd = btn.closest("tr").querySelector(".status-col");
           statusTd.classList.remove("status-unchecked");
           statusTd.classList.add("status-checked");
           statusTd.innerHTML = `<span style="color: green; font-weight:bold;">ตรวจแล้ว</span>`;
 
-          // อัปเดตคอลัมน์ action
           const actionTd = btn.parentElement;
           actionTd.innerHTML = "";
           const viewBtn = document.createElement("button");
@@ -243,7 +254,11 @@
           viewBtn.addEventListener("click", () => viewScore(answerId));
           actionTd.appendChild(viewBtn);
 
-          // ไปยังหน้าดูผลอัตโนมัติทันทีถ้าต้องการ
+          // อัปเดตข้อมูลใน allData ด้วย
+          const updated = allData.find(item => item.answer_id === answerId);
+          if (updated) updated.status = "ตรวจแล้ว";
+          sessionStorage.setItem("allData", JSON.stringify(allData));
+
           viewScore(answerId);
         } else {
           alert(result.detail || "ตรวจไม่สำเร็จ");
@@ -256,16 +271,33 @@
         btn.innerText = "ตรวจ";
       }
     }
-
-    // ไปยังหน้าดูผล
+    
     function viewScore(answerId) {
       window.location.href = `view_score.html?answer_id=${answerId}`;
     }
 
-    // โหลด filter ตอนเปิดเพจ
-    document.addEventListener("DOMContentLoaded", loadFilters);
-  </script>
+    function restoreSelectionsAndTable() {
+      const savedYear = sessionStorage.getItem("selectedYear");
+      const savedGroup = sessionStorage.getItem("selectedGroup");
+      if (savedYear) document.getElementById("year").value = savedYear;
+      if (savedGroup) document.getElementById("group").value = savedGroup;
 
+      if (savedYear || savedGroup) {
+        loadData();
+      }
+    }
+
+    document.addEventListener("DOMContentLoaded", () => {
+      const saved = sessionStorage.getItem("allData");
+      if (saved) {
+        allData = JSON.parse(saved);
+        populateFilters();
+        restoreSelectionsAndTable();
+      } else {
+        loadFilters();
+      }
+    });
+  </script>
 
 </body>
 

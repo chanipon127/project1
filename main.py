@@ -2,7 +2,7 @@ import json
 from fastapi import FastAPI, Request, Form, File, UploadFile, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-import psycopg2
+import psycopg2,psycopg2.extras
 from datetime import datetime
 import bcrypt
 import os
@@ -401,6 +401,7 @@ def get_all_answers():
 
 # ✅ API: ตรวจคำตอบด้วย AI
 # -------------------------------
+# -------------------------------
 @app.post("/api/check-answer/{answer_id}")
 async def check_answer(answer_id: int):
     try:
@@ -415,22 +416,30 @@ async def check_answer(answer_id: int):
         # 🔹 ตรวจด้วย AI
         result = evaluate_single_answer(essay_text)
 
-        if isinstance(result, dict):
-            result_dict = result
-        else:
+        # แปลงเป็น dict หากจำเป็น
+        if not isinstance(result, dict):
             result_dict = json.loads(result)
+        else:
+            result_dict = result
 
-        total_score = result_dict["คะแนนรวมทั้งหมด"]
+        # ดึงคะแนนรวมทั้งหมด
+        total_score = float(result_dict.get("คะแนนรวมทั้งหมด", 0))
 
-        # 🔹 บันทึกลง DB 
+        # สร้าง description รวมทุกผลลัพธ์เป็น JSON string
+        description_text = json.dumps(result_dict, ensure_ascii=False)
+
+        # 🔹 บันทึกลง DB
         cursor.execute("""
-            UPDATE answer 
-            SET score=%s, status='ตรวจแล้ว'
+            UPDATE answer
+            SET score=%s,
+                status='ตรวจแล้ว',
+                description=%s
             WHERE answer_id = %s
-        """, (total_score, answer_id))
+        """, (total_score, description_text, answer_id))
         conn.commit()
 
-        return {"message": "ตรวจคำตอบสำเร็จ", "score": total_score}
+        # return พร้อม description
+        return {"message": "ตรวจคำตอบสำเร็จ", "score": total_score, "description": result_dict}
 
     except Exception as e:
         conn.rollback()
@@ -438,3 +447,45 @@ async def check_answer(answer_id: int):
     finally:
         cursor.close()
 
+# -----------------------------
+# API: ดูผลคำตอบ
+# -----------------------------
+@app.get("/api/view-score/{answer_id}")
+def view_score(answer_id: int):
+    cur = None
+    try:
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        cur.execute("""
+            SELECT answer_id, student_id, group_id, exam_year,
+                   essay_text, essay_analysis, score, status, description
+            FROM answer
+            WHERE answer_id = %s
+        """, (answer_id,))
+        row = cur.fetchone()
+        if not row:
+            raise HTTPException(status_code=404, detail="ไม่พบคำตอบ")
+
+        # แปลง description จาก JSON string เป็น dict
+        if row['description']:
+            try:
+                description_data = json.loads(row['description'])
+            except Exception:
+                description_data = {}
+        else:
+            description_data = {}
+
+        return {
+            "answer_id": row['answer_id'],
+            "student_id": row['student_id'],
+            "group_id": row['group_id'],
+            "exam_year": row['exam_year'],
+            "essay_text": row['essay_text'],
+            "essay_analysis": row.get('essay_analysis', ''),
+            "score": row['score'],
+            "status": row['status'],
+            "description": description_data
+        }
+
+    finally:
+        if cur:
+            cur.close()

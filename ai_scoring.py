@@ -18,11 +18,17 @@ model = SentenceTransformer('paraphrase-multilingual-MiniLM-L12-v2')
 BASE_DIR = os.path.dirname(__file__)  # โฟลเดอร์ปัจจุบัน
 json_path = os.path.join(BASE_DIR, "data", "thai_loanwords_new_update.json")
 
-with open(json_path, 'r', encoding='utf-8') as f:
-    thai_loanwords = json.load(f)
+try:
+    with open(json_path, "r", encoding="utf-8") as f:
+        thai_loanwords = json.load(f)
+    loanwords_whitelist = {
+        item["thai_word"] for item in thai_loanwords if "thai_word" in item
+    }
+except FileNotFoundError:
+    print(f"⚠️ ไม่พบไฟล์: {json_path}")
+    thai_loanwords = []
+    loanwords_whitelist = set()
 
-# ✅ ทำเป็น whitelist ของคำยืม
-loanwords_whitelist = {item["thai_word"] for item in thai_loanwords}
 
 API_KEY = '33586c7cf5bfa0029887a9831bf94963' # add Apikey
 API_URL = 'https://api.longdo.com/spell-checker/proof'

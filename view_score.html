@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="th">
+
+<head>
+  <meta charset="UTF-8">
+  <title>ผลการตรวจคำตอบ</title>
+  <style>
+    body {
+      font-family: sans-serif;
+      margin: 20px;
+      background: #f5f5f5;
+    }
+
+    .container {
+      max-width: 900px;
+      margin: auto;
+      background: white;
+      padding: 20px;
+      border-radius: 8px;
+    }
+
+    h2 {
+      margin-top: 0;
+    }
+
+    table {
+      border-collapse: collapse;
+      width: 100%;
+      margin-top: 10px;
+    }
+
+    th,
+    td {
+      border: 1px solid #ddd;
+      padding: 8px;
+      text-align: left;
+    }
+
+    th {
+      background-color: #e0e0e0;
+    }
+
+    .btn-back {
+      padding: 8px 16px;
+      background: #4c65af;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      margin-bottom: 10px;
+    }
+
+    .btn-back:hover {
+      background: #3a4a8f;
+    }
+
+    .score {
+      font-weight: bold;
+      color: green;
+    }
+
+    .status {
+      font-weight: bold;
+    }
+
+    .status.checked {
+      color: green;
+    }
+
+    .status.unchecked {
+      color: red;
+    }
+
+    pre {
+      background: #eee;
+      padding: 10px;
+      border-radius: 4px;
+      overflow-x: auto;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="container">
+    <button class="btn-back" onclick="goBack()">← ย้อนกลับ</button>
+    <h2>ผลการตรวจคำตอบนักเรียน</h2>
+
+    <p><strong>รหัสนักเรียน:</strong> <span id="studentId"></span></p>
+    <p><strong>ชั้นเรียน:</strong> <span id="groupId"></span></p>
+    <p><strong>ปีการศึกษา:</strong> <span id="examYear"></span></p>
+    <p><strong>สถานะ:</strong> <span id="status" class="status"></span></p>
+    <p><strong>คะแนนรวม:</strong> <span id="score" class="score"></span></p>
+
+    <h3>คำตอบนักเรียน</h3>
+    <p><strong>ข้อ 1:</strong></p>
+    <pre id="essayText"></pre>
+
+    <p><strong>ข้อ 2:</strong></p>
+    <pre id="essayAnalysis"></pre>
+
+    <h3>รายละเอียดการตรวจ (AI Feedback)</h3>
+    <table>
+      <thead>
+        <tr>
+          <th>ข้อ</th>
+          <th>คะแนน</th>
+          <th>ข้อเสนอแนะ</th>
+        </tr>
+      </thead>
+      <tbody id="feedbackTable"></tbody>
+    </table>
+  </div>
+
+  <script>
+    function goBack() { 
+      // ถ้ามีหน้าใน history ให้ย้อนกลับไปเลย (จะไม่โหลดข้อมูลใหม่)
+      if (window.history.length > 1) {
+        window.history.back();
+      } else {
+        // ถ้าไม่มี history (เช่นเข้าหน้านี้โดยตรง) กลับไป check_exam.html
+        window.location.href = "check_exam.html";
+      }
+    }
+
+    const urlParams = new URLSearchParams(window.location.search);
+    const answer_id = urlParams.get('answer_id');
+
+    if (answer_id) {
+      fetch(`http://127.0.0.1:8000/api/view-score/${answer_id}`)
+        .then(res => res.ok ? res.json() : Promise.reject("ไม่สามารถโหลดข้อมูลได้"))
+        .then(data => {
+          document.getElementById("studentId").textContent = data.student_id;
+          document.getElementById("groupId").textContent = data.group_id;
+          document.getElementById("examYear").textContent = data.exam_year;
+          document.getElementById("status").textContent = data.status;
+          document.getElementById("status").className = "status " + (data.status === 'ตรวจแล้ว' ? 'checked' : 'unchecked');
+          document.getElementById("score").textContent = data.score || 0;
+          document.getElementById("essayText").textContent = data.essay_text || "";
+          document.getElementById("essayAnalysis").textContent = data.essay_analysis || "";
+
+          // แสดง feedback จาก description
+          // แสดง feedback จาก description
+          const feedbackTable = document.getElementById("feedbackTable");
+          feedbackTable.innerHTML = "";
+
+          if (data.description) {
+            for (let key in data.description) {
+              if (key === "คะแนนรวมทั้งหมด") continue;
+
+              let score = "";
+              let fb = "";
+
+              // ถ้าเป็น object (เช่น คะแนนใจความสำคัญ)
+              if (typeof data.description[key] === "object") {
+                // ถ้ามีคะแนนรวมใจความ
+                if ("คะแนนรวมใจความ " in data.description[key]) {
+                  score = data.description[key]["คะแนนรวมใจความ "];
+                }
+                // ข้อเสนอแนะรวมเป็น string
+                fb = JSON.stringify(data.description[key], null, 2);
+              } else {
+                // ถ้าเป็นค่าเดียว เช่น คะแนนการสะกดคำ
+                score = data.description[key];
+              }
+
+              const row = document.createElement("tr");
+              row.innerHTML = `<td>${key}</td><td>${score}</td><td><pre>${fb}</pre></td>`;
+              feedbackTable.appendChild(row);
+            }
+          }
+
+        })
+        .catch(err => alert(err));
+    } else {
+      alert("ไม่พบ answer_id");
+    }
+  </script>
+
+</body>
+
+</html>
