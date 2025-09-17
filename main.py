@@ -7,6 +7,7 @@ from datetime import datetime
 import bcrypt
 import os
 import shutil
+import numpy as np
 from fastapi import Query
 from typing import List
 from fastapi.responses import JSONResponse
@@ -400,21 +401,20 @@ def get_all_answers():
 
 
 # ✅ API: ตรวจคำตอบด้วย AI
-# -------------------------------
-# -------------------------------
 @app.post("/api/check-answer/{answer_id}")
 async def check_answer(answer_id: int):
     try:
         cursor = conn.cursor()
-        cursor.execute("SELECT essay_text FROM answer WHERE answer_id = %s", (answer_id,))
+        cursor.execute("SELECT essay_text, essay_analysis FROM answer WHERE answer_id = %s", (answer_id,))
         row = cursor.fetchone()
         if not row:
             raise HTTPException(status_code=404, detail="ไม่พบคำตอบ")
 
-        essay_text = row[0]
+        # ✅ ดึงทั้ง essay_text และ essay_analysis
+        essay_text, essay_analysis = row
 
         # 🔹 ตรวจด้วย AI
-        result = evaluate_single_answer(essay_text)
+        result = evaluate_single_answer(essay_text, essay_analysis)
 
         # แปลงเป็น dict หากจำเป็น
         if not isinstance(result, dict):
@@ -423,10 +423,7 @@ async def check_answer(answer_id: int):
             result_dict = result
 
         # ดึงคะแนนรวมทั้งหมด
-        total_score = float(result_dict.get("คะแนนรวมทั้งหมด", 0))
-
-        # สร้าง description รวมทุกผลลัพธ์เป็น JSON string
-        description_text = json.dumps(result_dict, ensure_ascii=False)
+        total_score = float(result_dict.get("คะแนนรวมทั้งหมด (15 คะแนน)", 0))
 
         # 🔹 บันทึกลง DB
         cursor.execute("""
@@ -435,17 +432,24 @@ async def check_answer(answer_id: int):
                 status='ตรวจแล้ว',
                 description=%s
             WHERE answer_id = %s
-        """, (total_score, description_text, answer_id))
+        """, (total_score, json.dumps(result_dict, ensure_ascii=False), answer_id))
+
         conn.commit()
 
-        # return พร้อม description
-        return {"message": "ตรวจคำตอบสำเร็จ", "score": total_score, "description": result_dict}
+        return {
+            "message": "ตรวจคำตอบสำเร็จ",
+            "score": total_score,
+            "description": result_dict
+        }
 
     except Exception as e:
         conn.rollback()
         raise HTTPException(status_code=500, detail=str(e))
     finally:
         cursor.close()
+
+
+
 
 # -----------------------------
 # API: ดูผลคำตอบ
@@ -489,3 +493,4 @@ def view_score(answer_id: int):
     finally:
         if cur:
             cur.close()
+            

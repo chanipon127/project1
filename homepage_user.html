@@ -5,146 +5,88 @@
     <title>หน้าหลัก - ระบบตรวจข้อสอบ AI</title>
     <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@400;600&display=swap" rel="stylesheet">
     <style>
-        body {
-            font-family: 'Prompt', sans-serif;
-            margin: 0;
-            background: #eef2f7;
-            color: #333;
-        }
-
-        .navbar {
-            background-color: #3b5bdb;
-            padding: 15px 30px;
-            color: white;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-        }
-
-        .navbar img {
-            height: 50px;
-        }
-
-        .navbar a {
-            color: white;
-            text-decoration: none;
-            font-weight: bold;
-            padding: 8px 16px;
-            background: #5c7cfa;
-            border-radius: 6px;
-            transition: background 0.3s ease;
-        }
-
-        .navbar a:hover {
-            background: #748ffc;
-        }
-
-        .content {
-            padding: 60px 20px;
-            text-align: center;
-        }
-
-        h1 {
-            color: #2a2a2a;
-            margin-bottom: 50px;
-            font-size: 2rem;
-        }
-
-        .image-container {
-            display: flex;
-            justify-content: center;
-            flex-wrap: wrap;
-            gap: 30px;
-        }
-
-        .image-item {
-            background: white;
-            padding: 20px;
-            border-radius: 16px;
-            box-shadow: 0 4px 10px rgba(0,0,0,0.1);
-            transition: transform 0.3s ease, box-shadow 0.3s ease;
-            width: 220px;
-        }
-
-        .image-item:hover {
-            transform: translateY(-10px);
-            box-shadow: 0 8px 20px rgba(0,0,0,0.2);
-        }
-
-        .image-item img {
-            width: 150px;
-            height: 150px;
-            border-radius: 50%;
-            object-fit: cover;
-            margin-bottom: 20px;
-            transition: transform 0.3s ease;
-        }
-
-        .image-item div {
-            font-weight: bold;
-            font-size: 1.1rem;
-            color: #444;
-        }
-
-        .logout {
-            margin-top: 50px;
-        }
-
-        .logout a {
-            text-decoration: none;
-            color: #555;
-            font-weight: bold;
-        }
+        body { font-family: 'Prompt', sans-serif; margin:0; background:#eef2f7; color:#333; }
+        .navbar { background-color: #4c65af; padding:15px 30px; color:white; display:flex; justify-content:space-between; align-items:center; box-shadow:0 4px 6px rgba(0,0,0,0.1); }
+        .navbar img { height:50px; }
+        .navbar a { color:white; text-decoration:none; font-weight:bold; padding:8px 16px; background:#5c7cfa; border-radius:6px; transition:background 0.3s ease; }
+        .navbar a:hover { background:#748ffc; }
+        .content { padding:60px 20px; text-align:center; }
+        h1 { color:#2a2a2a; margin-bottom:50px; font-size:2rem; }
+        .image-container { display:flex; justify-content:center; flex-wrap:wrap; gap:30px; }
+        .image-item { background:white; padding:20px; border-radius:16px; box-shadow:0 4px 10px rgba(0,0,0,0.1); transition: transform 0.3s ease, box-shadow 0.3s ease; width:220px; }
+        .image-item:hover { transform:translateY(-10px); box-shadow:0 8px 20px rgba(0,0,0,0.2); }
+        .image-item img { width:150px; height:150px; border-radius:50%; object-fit:cover; margin-bottom:20px; transition: transform 0.3s ease; }
+        .image-item div { font-weight:bold; font-size:1.1rem; color:#444; }
+        .logout { margin-top:50px; }
+        .logout a { text-decoration:none; color:#555; font-weight:bold; }
     </style>
 </head>
 <body>
 
     <div class="navbar">
-        <img src="C:\Users\ACER\Downloads\logo.png" alt="logo">
+        <img src="logo.png" alt="logo">
         <div>
             <a href="login.html">ออกจากระบบ</a>
         </div>
     </div>
 
     <div class="content">
-        <h1>
-            ยินดีต้อนรับสู่ระบบตรวจข้อสอบอัตนัยด้วยปัญญาประดิษฐ์
-            <?php echo $role == 'admin' ? ' (แอดมิน)' : ' (ผู้ตรวจข้อสอบ)'; ?>
-        </h1>
-
-        <div class="image-container">
-            <?php if ($role == 'examiner'): ?>
-                <div class="image-item">
-                    <a href="check_exam.html">
-                        <img src="C:\Users\ACER\Downloads\ตรวจข้อสอบ.png" alt="ตรวจข้อสอบ">
-                    </a>
-                    <div>ตรวจข้อสอบ</div>
-                </div>
-
-                <div class="image-item">
-                    <a href="view_scores.html">
-                        <img src="C:\Users\ACER\Downloads\ดูคะแนน.png" alt="ดูคะแนน">
-                    </a>
-                    <div>ดูคะแนน</div>
-                </div>
-
-                <div class="image-item">
-                    <a href="profile_user.html">
-                        <img src="C:\Users\ACER\Downloads\profile.png" alt="โปรไฟล์ของฉัน">
-                    </a>
-                    <div>โปรไฟล์ของฉัน</div>
-                </div>
-
-                <div class="image-item">
-                    <a href="contact_admin.html">
-                        <img src="C:\Users\ACER\Downloads\ติดต่อadmin.png" alt="ติดต่อAdmin">
-                    </a>
-                    <div>ติดต่อAdmin</div>
-                </div>
-            <?php endif; ?>
+        <h1 id="site-title">ยินดีต้อนรับสู่ระบบตรวจข้อสอบอัตนัยด้วยปัญญาประดิษฐ์</h1>
+        <div class="image-container" id="menu-container">
+            <!-- เมนูจะแสดงโดย JS ตาม role -->
         </div>
     </div>
 
+    <script>
+        // โหลดชื่อเว็บไซต์จาก localStorage
+        const siteTitle = localStorage.getItem('site_title') || 'ระบบตรวจข้อสอบอัตนัยด้วยปัญญาประดิษฐ์';
+        document.getElementById('site-title').textContent = siteTitle;
+
+        // โหลด role จาก localStorage
+        const role = localStorage.getItem('role');
+
+        const menuContainer = document.getElementById('menu-container');
+
+        if(role === 'examiner' || role === 'teacher') {
+            const menuItems = [
+                { href: 'check_exam.html', img: 'ตรวจข้อสอบ.png', label: 'ตรวจข้อสอบ' },
+                { href: 'view_scores.html', img: 'ดูคะแนน.png', label: 'ดูคะแนน' },
+                { href: 'profile_user.html', img: 'profile.png', label: 'โปรไฟล์ของฉัน' },
+                { href: 'contact_admin.html', img: 'ติดต่อadmin.png', label: 'ติดต่อAdmin' }
+            ];
+            menuItems.forEach(item => {
+                const div = document.createElement('div');
+                div.className = 'image-item';
+                div.innerHTML = `
+                    <a href="${item.href}">
+                        <img src="${item.img}" alt="${item.label}">
+                    </a>
+                    <div>${item.label}</div>
+                `;
+                menuContainer.appendChild(div);
+            });
+        } else if(role === 'admin') {
+            // เมนู admin ตัวอย่าง
+            const adminItems = [
+                { href: 'manage_user.html', img: 'ผู้ใช้งาน.png', label: 'จัดการผู้ใช้งาน' },
+                { href: 'settings.html', img: 'ตั้งค่า.png', label: 'ตั้งค่าระบบ' },
+                { href: 'view_feedback.html', img: 'feedback.png', label: 'ตรวจสอบความคิดเห็น' }
+            ];
+            adminItems.forEach(item => {
+                const div = document.createElement('div');
+                div.className = 'image-item';
+                div.innerHTML = `
+                    <a href="${item.href}">
+                        <img src="${item.img}" alt="${item.label}">
+                    </a>
+                    <div>${item.label}</div>
+                `;
+                menuContainer.appendChild(div);
+            });
+        }
+    </script>
 </body>
 </html>
+
+ 
+

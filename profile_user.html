@@ -11,27 +11,43 @@
       background-color: #f5f5f5;
     }
 
-    /* Navbar */
     .navbar {
-      background-color: #4c65af;
-      color: white;
-      padding: 10px 20px;
+      position: sticky; /* ติดด้านบน */
+      top: 0;
+      background-color: #4c65af; /* สีเดียว */
+      padding: 12px 30px;
       display: flex;
-      justify-content: space-between;
+      justify-content: center; /* <- เปลี่ยนจาก flex-start เป็น center */
       align-items: center;
+      box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+      z-index: 999;
     }
 
     .navbar a {
-      color: white;
+      color: #fff;
       text-decoration: none;
       margin-right: 20px;
-      font-weight: bold;
+      font-weight: 500;
+      padding: 8px 15px;
+      border-radius: 5px;
+      transition: all 0.3s ease;
     }
 
     .navbar a:hover {
-      text-decoration: underline;
+      background-color: rgba(255,255,255,0.2);
+      color: #ffeb3b;
     }
 
+    .navbar-left {
+      display: flex;
+      gap: 15px; /* เพิ่มช่องว่างระหว่างลิงก์ */
+    }
+
+    /* ซ่อน scrollbar แบบสวย */
+    .navbar-left::-webkit-scrollbar {
+      display: none;
+    }
+    
     .user-info {
       display: flex;
       align-items: center;
@@ -136,8 +152,9 @@
     <div class="navbar-left">
       <a href="homepage_user.html">HOME PAGE</a>
       <a href="check_exam.html">ตรวจข้อสอบ</a>
+      <a href="view_scores.html">ผลคะแนน</a>
       <a href="profile_user.html">จัดการผู้ใช้งาน</a>
-      <a href="contact_admin.html">ติดต่อแอดมิน</a>
+      <a href="contect_admin.html">ติดต่อแอดมิน</a>
       <a href="login.html">ออกจากระบบ</a>
     </div>
     <div class="navbar-right">
@@ -256,5 +273,7 @@
   </script>
 
 </body>
+
+</html>
 
 </html>

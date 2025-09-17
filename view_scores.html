@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<title>ผลการตรวจคำตอบ</title>
+<style>
+body { font-family: sans-serif; margin: 0; background: #f5f5f5; }
+    .navbar {
+      position: sticky; /* ติดด้านบน */
+      top: 0;
+      background-color: #4c65af; /* สีเดียว */
+      padding: 12px 30px;
+      display: flex;
+      justify-content: center; /* <- เปลี่ยนจาก flex-start เป็น center */
+      align-items: center;
+      box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+      z-index: 999;
+    }
+
+    .navbar a {
+      color: #fff;
+      text-decoration: none;
+      margin-right: 20px;
+      font-weight: 500;
+      padding: 8px 15px;
+      border-radius: 5px;
+      transition: all 0.3s ease;
+    }
+
+    .navbar a:hover {
+      background-color: rgba(255,255,255,0.2);
+      color: #ffeb3b;
+    }
+
+    .navbar-left {
+      display: flex;
+      gap: 15px; /* เพิ่มช่องว่างระหว่างลิงก์ */
+    }
+
+    /* ซ่อน scrollbar แบบสวย */
+    .navbar-left::-webkit-scrollbar {
+      display: none;
+    }
+.container { max-width: 1000px; margin: 20px auto; background: white; padding: 20px; border-radius: 8px; }
+h2 { margin-top: 0; }
+.filters { display: flex; align-items: center; gap: 10px; margin-bottom: 20px; }
+select, button { padding: 5px 10px; }
+table { border-collapse: collapse; width: 100%; margin-top: 10px; }
+th, td { border: 1px solid #ddd; padding: 8px; text-align: left; vertical-align: top; }
+th { background-color: #e0e0e0; }
+.score { font-weight: bold; color: green; }
+.status { font-weight: bold; }
+.status.checked { color: green; }
+.status.unchecked { color: red; }
+pre { background: #eee; padding: 10px; border-radius: 4px; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word; }
+</style>
+</head>
+<body>
+
+<div class="navbar">
+  <div class="navbar-left">
+    <a href="homepage_user.html">HOME PAGE</a>
+    <a href="check_exam.html">ตรวจข้อสอบ</a>
+    <a href="view_scores.html">ผลคะแนน</a>
+    <a href="profile_user.html">จัดการผู้ใช้งาน</a>
+    <a href="contect_admin.html">ติดต่อแอดมิน</a>
+    <a href="login.html">ออกจากระบบ</a>
+  </div>
+</div>
+
+<div class="container">
+  <h2>ผลการตรวจคำตอบนักเรียน</h2>
+
+  <div class="filters">
+    <label>ปีการศึกษา:
+      <select id="year"><option value="">-- เลือกปีการศึกษา --</option></select>
+    </label>
+    <label>กลุ่มการสอบ:
+      <select id="group"><option value="">-- เลือกกลุ่มการสอบ --</option></select>
+    </label>
+    <label>นักเรียน:
+      <select id="student"><option value="">-- เลือกรหัสนักเรียน --</option></select>
+    </label>
+    <button onclick="loadStudentData()">ดูผล</button>
+  </div>
+
+  <p><strong>รหัสนักเรียน:</strong> <span id="studentId"></span></p>
+  <p><strong>ชั้นเรียน:</strong> <span id="groupId"></span></p>
+  <p><strong>ปีการศึกษา:</strong> <span id="examYear"></span></p>
+  <p><strong>สถานะ:</strong> <span id="status" class="status"></span></p>
+  <p><strong>คะแนนรวม:</strong> <span id="score" class="score"></span></p>
+
+  <h3>คำตอบนักเรียน</h3>
+  <p><strong>ข้อ 1:</strong></p>
+  <pre id="essayText"></pre>
+  <p><strong>ข้อ 2:</strong></p>
+  <pre id="essayAnalysis"></pre>
+
+  <h3>รายละเอียดการตรวจ (AI Feedback)</h3>
+  <table>
+    <thead>
+      <tr>
+        <th>ข้อ</th>
+        <th>คะแนน</th>
+        <th>รายละเอียดคะแนน</th>
+      </tr>
+    </thead>
+    <tbody id="feedbackTable"></tbody>
+  </table>
+</div>
+
+<script>
+let allData = [];
+
+// โหลด filters ตอนเปิดหน้า
+document.addEventListener("DOMContentLoaded", async ()=>{
+  try {
+    const res = await fetch("http://127.0.0.1:8000/api/answers-all");
+    if(!res.ok) throw new Error("โหลดข้อมูลไม่สำเร็จ");
+    allData = await res.json();
+
+    const years = [...new Set(allData.map(item=>item.exam_year))];
+    const yearSelect = document.getElementById("year");
+    years.forEach(y=>{
+      const opt=document.createElement("option"); opt.value=y; opt.textContent=y;
+      yearSelect.appendChild(opt);
+    });
+
+    yearSelect.addEventListener("change", ()=>{
+      const groups=[...new Set(allData.filter(d=>d.exam_year==yearSelect.value).map(d=>d.group_id))];
+      const groupSelect=document.getElementById("group");
+      groupSelect.innerHTML='<option value="">-- เลือกกลุ่มการสอบ --</option>';
+      groups.forEach(g=>{
+        const opt=document.createElement("option"); opt.value=g; opt.textContent=g;
+        groupSelect.appendChild(opt);
+      });
+    });
+
+    document.getElementById("group").addEventListener("change", ()=>{
+      const group=document.getElementById("group").value;
+      const students=allData.filter(d=>d.exam_year==yearSelect.value && d.group_id==group);
+      const studentSelect=document.getElementById("student");
+      studentSelect.innerHTML='<option value="">-- เลือกรหัสนักเรียน --</option>';
+      students.forEach(s=>{
+        const opt=document.createElement("option"); opt.value=s.answer_id; opt.textContent=s.student_id;
+        studentSelect.appendChild(opt);
+      });
+    });
+
+  } catch(err){
+    alert(err.message);
+  }
+});
+
+// โหลดข้อมูลนักเรียน
+function loadStudentData(){
+  const answerId=document.getElementById("student").value;
+  if(!answerId){ alert("กรุณาเลือกนักเรียน"); return; }
+
+  fetch(`http://127.0.0.1:8000/api/view-score/${answerId}`)
+  .then(res=>res.ok?res.json():Promise.reject("ไม่สามารถโหลดข้อมูลได้"))
+  .then(data=>{
+    document.getElementById("studentId").textContent=data.student_id;
+    document.getElementById("groupId").textContent=data.group_id;
+    document.getElementById("examYear").textContent=data.exam_year;
+    document.getElementById("status").textContent=data.status;
+    document.getElementById("status").className="status "+(data.status==='ตรวจแล้ว'?'checked':'unchecked');
+    document.getElementById("score").textContent=data.score || 0;
+    document.getElementById("essayText").textContent=data.essay_text || "";
+    document.getElementById("essayAnalysis").textContent=data.essay_analysis || "";
+
+    // อัปเดตตาราง feedback
+    const feedbackTable=document.getElementById("feedbackTable");
+    feedbackTable.innerHTML="";
+    if(data.description){
+      for(let key in data.description){
+        if(key==="คะแนนรวมทั้งหมด") continue;
+        let score="",fb="";
+        if(typeof data.description[key]==="object"){
+          if("score" in data.description[key]) score=data.description[key].score;
+          fb=JSON.stringify(data.description[key],null,2);
+        } else {
+          score=data.description[key];
+        }
+        const row=document.createElement("tr");
+        row.innerHTML=`<td>${key}</td><td>${score}</td><td><pre>${fb}</pre></td>`;
+        feedbackTable.appendChild(row);
+      }
+    }
+  })
+  .catch(err=>alert(err));
+}
+</script>
+</body>
+</html>
+
+
+
+
+
+

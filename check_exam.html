@@ -12,23 +12,40 @@
     }
 
     .navbar {
-      background-color: #4c65af;
-      color: white;
-      padding: 10px 30px;
+      position: sticky; /* ติดด้านบน */
+      top: 0;
+      background-color: #4c65af; /* สีเดียว */
+      padding: 12px 30px;
       display: flex;
-      justify-content: space-between;
+      justify-content: center; /* <- เปลี่ยนจาก flex-start เป็น center */
       align-items: center;
+      box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+      z-index: 999;
     }
 
     .navbar a {
-      color: white;
+      color: #fff;
       text-decoration: none;
       margin-right: 20px;
-      font-weight: bold;
+      font-weight: 500;
+      padding: 8px 15px;
+      border-radius: 5px;
+      transition: all 0.3s ease;
     }
 
     .navbar a:hover {
-      text-decoration: underline;
+      background-color: rgba(255,255,255,0.2);
+      color: #ffeb3b;
+    }
+
+    .navbar-left {
+      display: flex;
+      gap: 15px; /* เพิ่มช่องว่างระหว่างลิงก์ */
+    }
+
+    /* ซ่อน scrollbar แบบสวย */
+    .navbar-left::-webkit-scrollbar {
+      display: none;
     }
 
     .user-info {
@@ -105,10 +122,6 @@
     </div>
     <div class="navbar-right">
       <div class="user-info">
-        <div>
-          <strong>mr.ja</strong><br>
-          <small>ja127</small>
-        </div>
         <img src="https://via.placeholder.com/40" alt="User Avatar">
       </div>
     </div>
@@ -298,6 +311,10 @@
       }
     });
   </script>
+
+</body>
+
+</html>
 
 </body>
 

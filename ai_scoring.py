@@ -4,11 +4,16 @@ import os
 import re
 import difflib
 import requests
+import time
+import pandas as pd
+import openai
+import numpy as np
 from sentence_transformers import SentenceTransformer, util
 from pythainlp.tokenize import word_tokenize
 from pythainlp.corpus import thai_words
 from pythainlp.tag import pos_tag
 from pythainlp.util import normalize
+from sklearn.metrics.pairwise import cosine_similarity
 
 # โหลดโมเดล
 model = SentenceTransformer('paraphrase-multilingual-MiniLM-L12-v2')
@@ -16,8 +21,9 @@ model = SentenceTransformer('paraphrase-multilingual-MiniLM-L12-v2')
 # ✅ -----------------------------
 # หา path ของไฟล์ json ในโฟลเดอร์ data
 BASE_DIR = os.path.dirname(__file__)  # โฟลเดอร์ปัจจุบัน
-json_path = os.path.join(BASE_DIR, "data", "thai_loanwords_new_update.json")
 
+# ---- thai_loanwords ----
+json_path = os.path.join(BASE_DIR, "data", "thai_loanwords_new_update.json")
 try:
     with open(json_path, "r", encoding="utf-8") as f:
         thai_loanwords = json.load(f)
@@ -29,6 +35,16 @@ except FileNotFoundError:
     thai_loanwords = []
     loanwords_whitelist = set()
 
+# ---- common misspellings ----
+misspellings_path = os.path.join(BASE_DIR, "data", "update_common_misspellings.json")
+
+try:
+    with open(misspellings_path, "r", encoding="utf-8") as f:
+        _cm = json.load(f)
+    COMMON_MISSPELLINGS = {item["wrong"]: item["right"] for item in _cm}
+except FileNotFoundError:
+    print(f"⚠️ ไม่พบไฟล์: {misspellings_path} (COMMON_MISSPELLINGS ตั้งเป็น empty dict)")
+    COMMON_MISSPELLINGS = {}
 
 API_KEY = '33586c7cf5bfa0029887a9831bf94963' # add Apikey
 API_URL = 'https://api.longdo.com/spell-checker/proof'
@@ -174,6 +190,65 @@ def evaluate_mind_score(answer_text):
     }
 
     return result
+
+# -----------------------------
+# Helper: ข้ามคำภาษาอังกฤษ/ตัวเลข
+# -----------------------------
+def is_english_or_number(word: str) -> bool:
+    """
+    คืน True ถ้า word เป็นภาษาอังกฤษหรือตัวเลข (หรือประกอบด้วยสัญลักษณ์ ASCII บางชนิด)
+    """
+    w = (word or "").strip()
+    if not w:
+        return False
+    # อนุญาต A-Z a-z 0-9 และ . , ( ) - _ /
+    return bool(re.fullmatch(r"[A-Za-z0-9\.\,\-\(\)_/]+", w))
+
+# -----------------------------
+# ตรวจ common misspellings (จากข้อความดิบ)
+# -----------------------------
+def check_common_misspellings_before_tokenize(text: str, misspelling_dict: dict):
+    """
+    text : ข้อความดิบ (ยังไม่ tokenize)
+    misspelling_dict : dict เช่น { "ผิพท์": "พิมพ์", ... }
+    คืน list ของ dict ที่มี keys: 'word' (wrong), 'index' (ตำแหน่งในข้อความดิบ), 'right' (คำถูก)
+    """
+    errors = []
+    if not misspelling_dict:
+        return errors
+    for wrong, right in misspelling_dict.items():
+        if wrong in text:
+            for m in re.finditer(re.escape(wrong), text):
+                errors.append({
+                    "word": wrong,
+                    "index": m.start(),
+                    "right": right
+                })
+    return errors
+
+# -----------------------------
+# ตรวจ loanwords ก่อน tokenize (ใช้กับ tokens)
+# -----------------------------
+def check_loanword_before_tokenize(tokens, whitelist):
+    """
+    tokens : list ของ token (ตัดแล้ว)
+    whitelist : set/list ของคำทับศัพท์ภาษาไทย (ไทยเขียนไม่ผิด)
+    คืน list ของ dict: {'word': token, 'index': position, 'suggestions': [best_match]}
+    """
+    mistakes = []
+    wl_list = list(whitelist) if whitelist else []
+    for i, w in enumerate(tokens):
+        if not w or is_english_or_number(w):
+            continue
+        # หา match ใกล้เคียงจาก whitelist
+        matches = difflib.get_close_matches(w, wl_list, n=1, cutoff=0.7)
+        if matches and w not in whitelist:
+            mistakes.append({
+                "word": w,
+                "index": i,
+                "suggestions": [matches[0]]
+            })
+    return mistakes
 
 #ตรวจการฉีกคำ
 def check_linebreak_issue(prev_line_tokens, next_line_tokens, max_words=3):
@@ -327,41 +402,59 @@ def detect_split_errors(tokens, custom_words=None):
     return errors
 
 def evaluate_text(text):
-    # วิเคราะห์
+    # -----------------------------
+    # จัดการตัดบรรทัด
+    # -----------------------------
     linebreak_issues = analyze_linebreak_issues(text)
     corrected_text = merge_linebreak_words(text, linebreak_issues)
+
+    # tokenize
     tokens = word_tokenize(corrected_text, engine='newmm', keep_whitespace=False)
     pos_tags = pos_tag(tokens, corpus='orchid')
 
-    # ✅ ตรวจคำทับศัพท์ (ใช้ loanwords_whitelist ที่ประกาศ global)
-    loanword_spell_errors = check_loanword_spelling(tokens, loanwords_whitelist)
-
-    # ตรวจสะกด
+    # ✅ 1) ตรวจ spelling ด้วย PyThaiNLP
     pythai_errors = pythainlp_spellcheck(tokens, pos_tags, dict_words=thai_dict, ignore_words=custom_words)
+
+    # ✅ 2) ตรวจ Longdo (batch)
     wrong_words = [e['word'] for e in pythai_errors]
     longdo_results = longdo_spellcheck_batch(wrong_words)
-    spelling_errors_legit = [
+    longdo_errors = [
         {**e, 'suggestions': longdo_results.get(e['word'], [])}
         for e in pythai_errors if e['word'] in longdo_results
     ]
 
-    # อื่น ๆ
-    punct_errors = find_unallowed_punctuations(text)
+    # ✅ 3) ตรวจ common misspellings จากข้อความดิบ
+    json_misspells = check_common_misspellings_before_tokenize(corrected_text, COMMON_MISSPELLINGS)
+
+    # ✅ 4) ตรวจ loanwords
+    loanword_errors = check_loanword_before_tokenize(tokens, loanwords_whitelist)
+
+    # ✅ รวม spelling errors ทั้งหมด
+    all_spelling_errors = longdo_errors + [
+        {
+            "word": e["word"],
+            "pos": None,
+            "index": e["index"],
+            "suggestions": [e["right"]],
+        }
+        for e in json_misspells
+    ] + loanword_errors
+
+    # ✅ ตรวจ punctuation, maiyamok, split word
+    punct_errors = find_unallowed_punctuations(corrected_text)
     maiyamok_results, has_wrong_maiyamok = analyze_maiyamok(tokens, pos_tags)
     split_errors = detect_split_errors(tokens, custom_words=custom_words)
 
-    # ==== นับจำนวนข้อผิดพลาดแต่ละประเภท ====
+    # ✅ รวมผล errors
     error_counts = {
-        "spelling": len(spelling_errors_legit) + len(loanword_spell_errors),
+        "spelling": len(all_spelling_errors),
         "linebreak": len(linebreak_issues),
         "split": len(split_errors),
         "punct": len(punct_errors),
         "maiyamok": sum(1 for r in maiyamok_results if r['สถานะ'].startswith('❌'))
     }
-    n_issue_types = sum(1 for c in error_counts.values() if c > 0)
-    multi_in_single_type = any(c >= 2 for c in error_counts.values())
 
-    # ==== สร้าง reasons ====
+    # ✅ สร้าง reasons
     reasons = []
     if error_counts["linebreak"]:
         details = [f"{issue['prev_part']} + {issue['next_part']} → {issue['combined']}" for issue in linebreak_issues]
@@ -370,9 +463,11 @@ def evaluate_text(text):
         details = [f"{e['split_pair'][0]} + {e['split_pair'][1]} → {e['suggested']}" for e in split_errors]
         reasons.append("พบการแยกคำผิด: " + "; ".join(details))
     if error_counts["spelling"]:
-        error_words = [e['word'] for e in spelling_errors_legit]
-        error_desc = [f"{e['found']} (ควรเป็น {e['should_be']})" for e in loanword_spell_errors]
-        reasons.append(f"ตรวจเจอคำสะกดผิดหรือทับศัพท์ผิด: {', '.join(error_words + error_desc)}")
+        error_words = [
+            f"{e['word']} (แนะนำ: {', '.join(e.get('suggestions', []))})"
+            for e in all_spelling_errors
+        ]
+        reasons.append(f"ตรวจเจอคำสะกดผิดหรือทับศัพท์ผิด: {', '.join(error_words)}")
     if error_counts["punct"]:
         reasons.append(f"ใช้เครื่องหมายที่ไม่อนุญาต: {', '.join(punct_errors)}")
     if error_counts["maiyamok"]:
@@ -382,20 +477,20 @@ def evaluate_text(text):
     if not reasons:
         reasons.append("ไม่มีปัญหา")
 
-    # ==== เกณฑ์การให้คะแนน ====
+    # ✅ การให้คะแนน
     if sum(error_counts.values()) == 0:
         score = 1.0
-    elif n_issue_types == 1 and multi_in_single_type:
+    elif sum(c > 0 for c in error_counts.values()) == 1 and max(error_counts.values()) >= 2:
         score = 0.0
-    elif n_issue_types == 1:
+    elif sum(c > 0 for c in error_counts.values()) == 1:
         score = 0.5
     else:
         score = 0.0
 
     return {
         'linebreak_issues': linebreak_issues,
-        'spelling_errors': spelling_errors_legit,
-        'loanword_spell_errors': loanword_spell_errors,
+        'spelling_errors': all_spelling_errors,
+        'loanword_spell_errors': loanword_errors,
         'punctuation_errors': list(punct_errors),
         'maiyamok_results': maiyamok_results,
         'split_errors': split_errors,
@@ -403,10 +498,402 @@ def evaluate_text(text):
         'score': score
     }
 
+
+# ==========================
+# S2---ฟังก์ชันตรวจเรียงลำดับ/เชื่อมโยงความคิด
+# ==========================
+AIFORTHAI_URL = "https://api.aiforthai.in.th/qaiapp"
+AIFORTHAI_HEADERS = {
+    'Content-Type': "application/json",
+    'apikey': "zyHC3BNtLiesIuTj2UMlQd8DhrVXBxzM",
+}
+questions = [
+    {"question": "เป็นไปตามเหตุและผล ตอบ ใช่ หรือ ไม่ใช่",
+     "check": lambda ans: ans.strip() == "ใช่"},
+    {"question": "มีเนื้อความซ้ำ ถ้ามีตอบว่าที่ประโยคไหน",
+     "check": lambda ans: "ไม่มี" in ans.strip()},
+    {"question": "มีเนื้อความไม่สัมพันธ์กัน ถ้ามีตอบว่าที่ประโยคไหน",
+     "check": lambda ans: "ไม่มี" in ans.strip()},
+    {"question": "มีเนื้อความขาด ถ้ามีตอบว่าที่ประโยคไหน",
+      "check": lambda ans: ans.strip().startswith("ไม่มี")}
+]
+
+def evaluate_ordering_and_coherence(student_answer):
+    """
+    ตรวจเรียงลำดับความคิดและความสัมพันธ์ของเนื้อหา
+    ใช้ AI for Thai Q&A API
+    """
+    answers = []
+    wrong_count = 0
+
+    for idx, q in enumerate(questions, start=1):
+        while True:
+            payload = json.dumps({
+                "question": q["question"],
+                "document": student_answer
+            })
+
+            try:
+                response = requests.post(
+                    AIFORTHAI_URL, data=payload, headers=AIFORTHAI_HEADERS, timeout=10
+                )
+            except requests.exceptions.RequestException as e:
+                print(f"⚠️ เกิดข้อผิดพลาด: {e}, รอแล้วลองใหม่...")
+                time.sleep(1)
+                continue
+
+            if response.status_code == 200:
+                result = response.json()
+                answer = result.get("answer", "").strip()
+
+                if answer and answer.lower() not in ["", "ไม่พบคำตอบ"]:
+                    answers.append(answer)
+                    if not q["check"](answer):
+                        wrong_count += 1
+                    break
+                else:
+                    print(f"⏳ ยังไม่ได้คำตอบ ลองใหม่...")
+            else:
+                print(f"⚠️ Error {response.status_code}: {response.text}")
+
+            time.sleep(0.5)
+
+    # คำนวณคะแนน (2 = ดี, 1 = พอใช้, 0 = แย่)
+    if wrong_count == 0:
+        score = 2
+    elif wrong_count == 1:
+        score = 1
+    else:
+        score = 0
+
+    # ✅ เพิ่ม details ตรงนี้
+    return {
+        "answers": answers,
+        "score": score,
+        "details": {
+            "wrong_count": wrong_count,
+            "answers_checked": answers
+        }
+    }
+
+
+
+#---------S3 ความถูกต้องตามหลักการเขียนย่อความ-------------
+# ---------- ตั้งค่า ----------
+TNER_URL = 'https://api.aiforthai.in.th/tner'
+AIFORTHAI_URL = "https://api.aiforthai.in.th/qaiapp"
+
+
+# ---------- โหลด Dataset ----------
+examples_df = pd.read_csv(r'D:\project1\example_dialect.csv')
+pronouns_df = pd.read_csv(r'D:\project1\personal_pronoun_dataset1 (1).csv')
+
+example_phrases = examples_df['local_word'].dropna().tolist()
+pronouns_1 = pronouns_df['personal pronoun 1'].dropna().tolist()
+pronouns_2 = pronouns_df['personal pronoun 2'].dropna().tolist()
+pronouns_1_2 = pronouns_1 + pronouns_2
+
+# ---------- บทความอ้างอิง ----------
+reference_text = """
+สื่อสังคม (Social Media) หรือที่คนทั่วไปเรียกว่า สื่อออนไลน์ หรือ สื่อสังคม ออนไลน์ นั้น เป็นสื่อหรือช่องทางที่แพร่กระจายข้อมูลข่าวสารในรูปแบบต่างๆ ได้อย่างรวดเร็วไปยังผู้คนที่อยู่ทั่วทุกมุมโลกที่สัญญาณโทรศัพท์เข้าถึง เช่น การนําเสนอข้อดีนานาประการของสินค้าชั้นนํา สินค้าพื้นเมืองให้เข้าถึงผู้ซื้อได้
+ทั่วโลก การนําเสนอข้อเท็จจริงของข่าวสารอย่างตรงไปตรงมา การเผยแพร่ งานเขียนคุณภาพบนโลกออนไลน์แทนการเข้าสํานักพิมพ์ เป็นต้น จึงกล่าวได้ว่า เราสามารถใช้สื่อสังคมออนไลน์ค้นหาและรับข้อมูลข่าวสารที่มีประโยชน์ได้เป็นอย่างดี
+  อย่างไรก็ตาม หากใช้สื่อสังคมออนไลน์อย่างไม่ระมัดระวัง หรือขาดความรับผืดชอบต่อสังคมส่วนรวม ไม่ว่าจะเป็นการเขียนแสดงความคิดเห็นวิพากษ์วิจารณ์ผู้อื่นในทางเสียหาย การนำเสนอผลงานที่มีเนื้อหาล่อแหลมหรือชักจูงผู้รับสารไปในทางไม่เหมาะสม หรือการสร้างกลุ่มเฉพาะที่ขัดต่อศีลธรรมอันดีของสังคมตลอดจนใช้เป็นช่องทางในการกระทำผิดกฎหมายทั้งการพนัน การขายของ
+ผิดกฎหมาย เป็นต้น การใช้สื่อสังคมออนไลน์ในลักษณะดังกล่าวจึงเป็นการใช้ที่เป็นโทษแก่สังคม
+	ปัจจุบันผู้คนจํานวนไม่น้อยนิยมใช้สื่อสังคมออนไลน์เป็นช่องทางในการทํา การตลาดทั้งในทางธุรกิจ สังคม และการเมือง จนได้ผลดีแบบก้าวกระโดด ทั้งนี้ เพราะสามารถเข้าถึงกลุ่มคนทุกเพศ ทุกวัย และทุกสาขาอาชีพโดยไม่มีข้อจํากัดเรื่อง เวลาและสถานที่ กลุ่มต่างๆ ดังกล่าวจึงหันมาใช้สื่อสังคมออนไลน์เพื่อสร้างกระแสให้ เกิดความนิยมชมชอบในกิจการของตน ด้วยการโฆษณาชวนเชื่อทุกรูปแบบจนลูกค้า เกิดความหลงใหลข้อมูลข่าวสาร จนตกเป็นเหยื่ออย่างไม่รู้ตัว เราจึงควรแก้ปัญหา การตกเป็นเหยื่อทางการตลาดของกลุ่มมิจฉาชีพด้วยการเร่งสร้างภูมิคุ้มกันรู้ทันสื่อไม่ตกเป็นเหยื่อทางการตลาดโดยเร็ว
+	แม้ว่าจะมีการใช้สื่อสังคมออนไลน์ในทางสร้างสรรค์สิ่งที่ดีให้แก่สังคม ตัวอย่างเช่น การเตือนภัยให้แก่คนในสังคมได้อย่างรวดเร็ว การส่งต่อข้อมูลข่าวสาร เพื่อระดมความช่วยเหลือให้แก่ผู้ที่กําลังเดือดร้อน เป็นต้น แต่หลายครั้งคนในสังคมก็ อาจรู้สึกไม่มั่นใจเมื่อพบว่าตนเองถูกหลอกลวงจากคนบางกลุ่มที่ใช้สื่อสังคมออนไลน์
+เป็นพื้นที่แสวงหาผลประโยชน์ส่วนตัว จนทําให้เกิดความเข้าใจผิดและสร้างความ เสื่อมเสียให้แก่ผู้อื่น ดังนั้นการใช้สื่อสังคมออนไลน์ด้วยเจตนาแอบแฝงจึงมีผลกระทบต่อความน่าเชื่อถือของข้อมูลข่าวสารโดยตรง
+"""
+
+# ---------- ฟังก์ชันตรวจหลักการย่อความ ----------
+def call_tner(text):
+    headers = {'Apikey': API_KEY}
+    data = {'text': text}
+    try:
+        resp = requests.post(TNER_URL, headers=headers, data=data, timeout=10)
+        if resp.status_code == 200:
+            return resp.json()
+    except Exception as e:
+        print(f"TNER API error: {e}")
+    return None
+
+def check_summary_similarity(student_answer, reference_text, threshold=0.8):
+    embeddings = model.encode([student_answer, reference_text])
+    sim = cosine_similarity([embeddings[0]], [embeddings[1]])[0][0]
+    return sim >= threshold, sim
+
+def check_examples(student_answer, example_phrases):
+    return not any(phrase in student_answer for phrase in example_phrases)
+
+def check_pronouns(student_answer, pronouns_list):
+    words = word_tokenize(student_answer, engine='newmm')
+    return not any(p in words for p in pronouns_list)
+
+def check_abbreviations(student_answer):
+    pattern = r'\b(?:[ก-ฮA-Za-z]\.){2,}'
+    if re.search(pattern, student_answer):
+        return False
+    tner_result = call_tner(student_answer)
+    if tner_result:
+        for item in tner_result.get('entities', []):
+            if item['type'] in ['ABB_DES', 'ABB_TTL', 'ABB_ORG', 'ABB_LOC', 'ABB']:
+                return False
+    return True
+
+def check_title(student_answer, forbidden_title="การใช้สื่อสังคมออนไลน์"):
+    return forbidden_title not in student_answer
+
+def validate_student_answer(student_answer):
+    sim_pass, sim_score = check_summary_similarity(student_answer, reference_text)
+    results = {
+        "summary_similarity": sim_pass,
+        "similarity_score": round(sim_score, 3),
+        "no_example": check_examples(student_answer, example_phrases),
+        "no_pronouns": check_pronouns(student_answer, pronouns_1_2),
+        "no_abbreviations": check_abbreviations(student_answer),
+        "no_title": check_title(student_answer),
+    }
+    errors = [k for k, v in results.items() if k != "similarity_score" and not v]
+    score = 1 if len(errors) == 0 else 0
+    return score, errors, results
+
+#----------S6 การใช้ประโยค------------
+# ---------------- Typhoon API ----------------
+client = openai.OpenAI(
+    api_key="sk-3u6WAA0DwMjJoJ2xDDxFy2ecuZDKTjUF1mCOCXAJKSlR3Xqq",
+    base_url="https://api.opentyphoon.ai/v1"
+)
+
+# ---------------- AI for Thai API ----------------
+aiforthai_url = "https://api.aiforthai.in.th/qaiapp"
+aiforthai_headers = {
+    'Content-Type': "application/json",
+    'apikey': "zyHC3BNtLiesIuTj2UMlQd8DhrVXBxzM",
+}
+
+# ---------------- ฟังก์ชัน Typhoon ----------------
+def ask_typhoon(question, document):
+    response = client.chat.completions.create(
+        model="typhoon-v2.1-12b-instruct",
+        messages=[
+            {"role": "system", "content": "คุณคือผู้เชี่ยวชาญด้านภาษาไทย"},
+            {"role": "user", "content": f"{question} จากประโยค:\n{document}"}
+        ],
+        temperature=0,
+        max_tokens=1000
+    )
+    return response.choices[0].message.content.strip()
+
+# ---------------- ฟังก์ชัน AI for Thai ----------------
+def ask_aiforthai_until_answer(question, document, wait_sec=2):
+    question_clean = " ".join(question.split())
+    attempt = 0
+    while True:
+        attempt += 1
+        payload = json.dumps({"question": question_clean, "document": document})
+        try:
+            response = requests.post(aiforthai_url, data=payload, headers=aiforthai_headers, timeout=10)
+        except requests.exceptions.RequestException as e:
+            print(f"⚠️ API Error: {e} (retry {attempt})")
+            time.sleep(wait_sec)
+            continue
+
+        if response.status_code == 200:
+            result = response.json()
+            answer = result.get("answer", "").strip()
+            if answer and ("ไม่พบ" not in answer) and ("ไม่สามารถตรวจได้" not in answer):
+                return answer
+        time.sleep(wait_sec)
+
+
+#------------------S7 คำบอกข้อคิดเห็น --------------------
+def evaluate_agreement_with_reference(answer: str, reference_text: str, threshold: float = 0.6) -> dict:
+    """
+    ตรวจคำบอกข้อคิดเห็น (เห็นด้วย/ไม่เห็นด้วย) + cosine similarity กับ reference_text
+    ใช้ตรวจ essay_analysis
+    """
+    found = None
+    if "ไม่เห็นด้วย" in answer:
+        found = "ไม่เห็นด้วย"
+    elif "เห็นด้วย" in answer:
+        found = "เห็นด้วย"
+
+    emb_answer = model.encode(answer, convert_to_tensor=True)
+    emb_ref = model.encode(reference_text, convert_to_tensor=True)
+    cosine_score = float(util.cos_sim(emb_answer, emb_ref)[0][0].item())
+
+    if not found and cosine_score < threshold:
+        return {
+            "cosine_similarity": round(cosine_score, 3),
+            "found_word": "ไม่พบ",
+            "score": 0,
+            "message": "ไม่มีคำบอกข้อคิดเห็น และ cosine < threshold, ไม่ตรวจทั้งข้อ"
+        }
+
+    return {
+        "cosine_similarity": round(cosine_score, 3),
+        "found_word": found if found else "ไม่พบ",
+        "score": 1 if found else 0.5,
+        "message": "ตรวจผ่าน"
+    }
+
+#------------------S9 การเรียงลำดับ --------------------
+def evaluate_ordering_and_coherence(essay_analysis):
+    answers = []
+    wrong_details = []
+    wrong_count = 0
+
+    for idx, q in enumerate(questions, start=1):
+        while True:
+            payload = json.dumps({"question": q["question"], "document": essay_analysis})
+            try:
+                response = requests.post(AIFORTHAI_URL, data=payload, headers=AIFORTHAI_HEADERS, timeout=10)
+            except requests.exceptions.RequestException:
+                time.sleep(1)
+                continue
+
+            if response.status_code == 200:
+                result = response.json()
+                answer = result.get("answer", "").strip()
+                if answer and answer.lower() not in ["", "ไม่พบคำตอบ"]:
+                    answers.append(answer)
+                    if not q["check"](answer):
+                        wrong_count += 1
+                        wrong_details.append(f"ข้อ {idx} ({q['question']}) → {answer}")
+                    break
+            time.sleep(0.5)
+
+    if wrong_count == 0:
+        score = 3
+    elif wrong_count == 1:
+        score = 2
+    elif wrong_count == 2:
+        score = 1
+    else:
+        score = 0
+
+    return {
+        "answers": answers,
+        "score": score,
+        "details": {
+            "wrong_count": wrong_count,
+            "wrong_details": wrong_details if wrong_details else ["ถูกทั้งหมด"],
+            "answers_checked": answers
+        }
+    }
+
+#------------------S10 ความถูกต้องตามหลักการเขียนแสดงความคิดเห็น --------------------
+TNER_API_KEY = 'zyHC3BNtLiesIuTj2UMlQd8DhrVXBxzM'
+CYBERBULLY_API_KEY = 'zyHC3BNtLiesIuTj2UMlQd8DhrVXBxzM'
+
+personal_pronoun_1 = {"หนู", "ข้า", "กู"}
+personal_pronoun_2 = {"คุณ", "แก", "เธอ", "ตัวเอง", "เอ็ง", "มึง"}
+all_personal_pronouns = personal_pronoun_1.union(personal_pronoun_2)
+
+def check_named_entities(text):
+    url = "https://api.aiforthai.in.th/tner"
+    headers = {"Apikey": TNER_API_KEY}
+    data = {"text": text}
+    try:
+        response = requests.post(url, headers=headers, data=data, timeout=8)
+        if response.status_code == 200:
+            ner_result = response.json()
+            bad_tags = {'ABB_DES', 'ABB_TTL', 'ABB_ORG', 'ABB_LOC', 'ABB'}
+            bad_entities = [ent['word'] for ent in ner_result.get("entities", []) if ent['tag'] in bad_tags]
+            if bad_entities:
+                return True, bad_entities
+    except:
+        pass
+    return False, []
+
+def check_cyberbully(text):
+    url = "https://api.aiforthai.in.th/cyberbully"
+    headers = {"Apikey": CYBERBULLY_API_KEY}
+    data = {"text": text}
+    try:
+        response = requests.post(url, headers=headers, data=data, timeout=8)
+        if response.status_code == 200:
+            result = response.json()
+            if result.get("bully", "no") == "yes":
+                bully_words = result.get("bully_words") or result.get("bully_phrases") or [text]
+                return True, bully_words
+    except:
+        pass
+    return False, []
+
+def check_personal_pronouns(text):
+    tokens = word_tokenize(text, engine="newmm")
+    found_pronouns = [token for token in tokens if token in all_personal_pronouns]
+    if found_pronouns:
+        return True, found_pronouns
+    return False, []
+
+def evaluate_comment_validity(text):
+    """
+    ตรวจความถูกต้องของการแสดงความคิดเห็น
+    - ห้ามมีชื่อเฉพาะ
+    - ห้ามใช้คำ bully
+    - ห้ามใช้สรรพนามบุรุษที่ 1/2
+    """
+    mistakes = []
+    mistake_count = 0
+
+    ne_flag, ne_words = check_named_entities(text)
+    if ne_flag:
+        mistake_count += 1
+        mistakes.append(f"มีชื่อเฉพาะ/ตัวย่อ: {', '.join(ne_words)}")
+
+    bully_flag, bully_words = check_cyberbully(text)
+    if bully_flag:
+        mistake_count += 1
+        mistakes.append(f"ข้อความลักษณะ Cyberbully: {', '.join(bully_words)}")
+
+    pronoun_flag, pronouns = check_personal_pronouns(text)
+    if pronoun_flag:
+        mistake_count += 1
+        mistakes.append(f"ใช้สรรพนามบุรุษที่ 1 หรือ 2: {', '.join(pronouns)}")
+
+    if mistake_count == 0:
+        score = 1
+    elif mistake_count == 1:
+        score = 0.5
+    else:
+        score = 0
+
+    return {
+        "score": score,
+        "details": mistakes if mistakes else ["ไม่มีข้อผิดพลาด"]
+    }
+
+
 # ✅ -----------------------------
 # ฟังก์ชันหลัก เรียกจาก FastAPI
 # ✅ -----------------------------
-def evaluate_single_answer(answer_text):
+def convert_numpy_to_python(obj):
+    """แปลงค่า numpy หรือ set ให้ JSON-safe"""
+    if isinstance(obj, dict):
+        return {k: convert_numpy_to_python(v) for k, v in obj.items()}
+    elif isinstance(obj, list):
+        return [convert_numpy_to_python(x) for x in obj]
+    elif isinstance(obj, set):
+        return [convert_numpy_to_python(x) for x in obj]  # set → list
+    elif isinstance(obj, (np.integer, np.int32, np.int64)):
+        return int(obj)
+    elif isinstance(obj, (np.floating, np.float32, np.float64)):
+        return float(obj)
+    elif isinstance(obj, (np.bool_, bool)):
+        return bool(obj)
+    else:
+        return obj
+
+# ==========================
+# ฟังก์ชันหลัก: ตรวจใจความ + สะกดคำ + เรียงลำดับ/เชื่อมโยง + การใช้ประโยค
+# ==========================
+def evaluate_single_answer(answer_text, essay_analysis):
+    # ---------------------------
+    # ✅ ข้อที่ 1 : ตรวจจาก answer_text
+    # ---------------------------
+
+    # 1) ใจความสำคัญ
     student_emb = model.encode(answer_text, convert_to_tensor=True)
     core_sentences = [
         "สื่อสังคมหรือสื่อออนไลน์หรือสื่อสังคมออนไลน์เป็นช่องทางที่ใช้ในการเผยแพร่หรือค้นหาหรือรับข้อมูลข่าวสาร",
@@ -416,38 +903,160 @@ def evaluate_single_answer(answer_text):
     ]
     core_embs = model.encode(core_sentences, convert_to_tensor=True)
     cosine_scores = util.cos_sim(student_emb, core_embs)[0]
-    best_score = cosine_scores.max().item()
+    best_score = float(cosine_scores.max().item())
 
-    # ถ้า similarity ต่ำกว่าเกณฑ์ ไม่ตรวจใจความ
-    if best_score < 0.6:
-        return {
-            "cosine_similarity": best_score,
-            "คะแนนใจความสำคัญ": {"ใจความที่ 1": 0, "ใจความที่ 2": 0,
-                                "ใจความที่ 3": 0, "ใจความที่ 4": 0,
-                                "คะแนนรวมใจความ ": 0},
-            "คะแนนการสะกดคำ": 0.0,
-            "เงื่อนไขที่ผิด": ["Cosine similarity < 0.6 ไม่ตรวจใจความสำคัญ"],
-            "คะแนนรวมทั้งหมด": 0.0
-        }
-
-    # ตรวจใจความสำคัญ
     mind_score = evaluate_mind_score(answer_text)
-    mind_total = mind_score["คะแนนรวมใจความ "]
+    mind_total = int(mind_score.get("คะแนนรวมใจความ ", 0))
 
-    if mind_total == 0:
-        spelling_score = 0.0
-        combined_score = 0.0
-        spelling_reason = ["ไม่ได้คะแนนใจความสำคัญ (ใจความ = 0) จึงไม่ตรวจการสะกดคำ"]
+    # ถ้าใจความเป็น 0 หรือ cosine ต่ำกว่า 0.6 → ตัดจบ
+    if mind_total == 0 or best_score < 0.6:
+        mind_score = {
+            "cosine_similarity": round(best_score, 3),
+            "ใจความที่ 1": 0,
+            "ใจความที่ 2": 0,
+            "ใจความที่ 3": 0,
+            "ใจความที่ 4": 0,
+            "คะแนนรวม": 0,
+            "message": "ใจความต่ำกว่ามาตรฐาน → ข้อที่ 1 = 0"
+        }
+        mind_total = 0
+        # กำหนดค่าทุกส่วนของข้อที่ 1 เป็น 0 โดยไม่ตรวจต่อ
+        ordering1_score, ordering1_details = 0, {}
+        summary1_score, summary1_details = 0, {}
+        spelling_score, spelling_res = 0, {"reasons": []}
+        score_s6, s6_result = 0, {}
+        total_score1 = 0
     else:
-        res = evaluate_text(str(answer_text))
-        spelling_score = res["score"]
-        combined_score = mind_total + spelling_score
-        spelling_reason = res["reasons"]
+        # 2) เรียงลำดับความคิด
+        ordering1 = evaluate_ordering_and_coherence(answer_text)
+        ordering1_score = float(ordering1.get("score", 0))
+        ordering1_details = convert_numpy_to_python(ordering1.get("details", {}))
 
-    return {
-        "cosine_similarity": best_score,
-        "คะแนนใจความสำคัญ (4 คะแนน)": mind_score,
-        "คะแนนการสะกดคำ (1 คะแนน)": spelling_score,
-        "เงื่อนไขที่ผิด": spelling_reason,
-        "คะแนนรวมทั้งหมด": combined_score
-    }
+        # 3) ความถูกต้องตามหลักการย่อความ
+        summary1_score, summary1_err, summary1_details = validate_student_answer(answer_text)
+        summary1_score = int(summary1_score)
+        summary1_details = convert_numpy_to_python(summary1_details)
+
+        # 4) การสะกดคำ
+        spelling_res = evaluate_text(answer_text)
+        spelling_score = float(spelling_res.get("score", 0))
+        spelling_reason = str(spelling_res.get("reasons", ""))
+
+        # 5) การใช้ประโยค (S6)
+        try:
+            q1 = "หาประธาน กริยา กรรมในประโยคทั้งหมด ของแต่ละประโยค ตอบเป็นคำ"
+            ans1_raw = ask_typhoon(q1, answer_text)
+            ans1_lines = [line.strip() for line in ans1_raw.split("\n\n") if line.strip()]
+        except Exception as e:
+            ans1_lines = [f"API Error Typhoon: {e}"]
+        try:
+            q2_raw = "ประโยคที่ไม่สื่อความหมายหรือไม่เข้าใจที่จะสื่อ"
+            ans2_lines = ask_aiforthai_until_answer(q2_raw, answer_text)
+        except Exception as e:
+            ans2_lines = f"API Error AI for Thai: {e}"
+
+        score_s6 = 1.0
+        missing_count = len(re.findall(r"\(ไม่ระบุ\)", "\n".join(ans1_lines)))
+        score_s6 -= 0.5 * missing_count
+        if isinstance(ans2_lines, str):
+            if ans2_lines.strip() and not ans2_lines.strip().startswith("ไม่มี"):
+                score_s6 -= 0.5
+        else:
+            if ans2_lines and not str(ans2_lines[0]).startswith("ไม่มี"):
+                score_s6 -= 0.5
+        score_s6 = float(max(score_s6, 0))
+
+        s6_result = {
+            "score": score_s6,
+            "Q1_detail": ans1_lines,
+            "Q2_detail": ans2_lines if isinstance(ans2_lines, list) else [ans2_lines]
+        }
+    
+
+    # ---------------------------
+    # ✅ ข้อที่ 2 : ตรวจจาก essay_analysis
+    # ---------------------------
+
+    # 1) คำบอกข้อคิดเห็น (เห็นด้วย/ไม่เห็นด้วย)
+    agreement_result = evaluate_agreement_with_reference(essay_analysis, reference_text)
+    agreement_score = agreement_result.get("score", 0)
+
+    # ถ้าไม่มีคำบอก + cosine สูง → หยุดตรวจข้อที่ 2
+    if agreement_score == 0 and "ไม่ตรวจ" in agreement_result.get("message",""):
+        total_score1 = mind_total + ordering1_score + summary1_score + spelling_score + score_s6
+        return convert_numpy_to_python({
+            "ข้อที่ 1": {
+                "ใจความสำคัญ (4 คะแนน)": mind_score,
+                "เรียงลำดับ (2 คะแนน)": {"score": ordering1_score, "details": ordering1_details},
+                "ความถูกต้องย่อความ (1 คะแนน)": {"score": summary1_score, "details": summary1_details},
+                "การสะกดคำ (1 คะแนน)": {"score": spelling_score, "details": spelling_reason},
+                "การใช้ประโยค (1 คะแนน)": s6_result,
+                "คะแนนรวมข้อที่ 1": total_score1
+            },
+            "ข้อที่ 2": {
+                "คำบอกข้อคิดเห็น": agreement_result,
+                "message": "ไม่มีคำบอกข้อคิดเห็นและ cosine สูง → ข้อที่ 2 = 0 (ไม่ตรวจต่อ)"
+            },
+            "คะแนนรวมทั้งหมด": total_score1  # ไม่มีคะแนนข้อที่ 2
+        })
+
+    # 2) เรียงลำดับความคิด
+    ordering2 = evaluate_ordering_and_coherence(essay_analysis)
+    ordering2_score = float(ordering2.get("score", 0))
+    ordering2_details = convert_numpy_to_python(ordering2.get("details", {}))
+
+    # 3) ความถูกต้องตามหลักการแสดงความคิดเห็น
+    summary2_score, summary2_err, summary2_details = validate_student_answer(essay_analysis)
+    summary2_score = int(summary2_score)
+    summary2_details = convert_numpy_to_python(summary2_details)
+
+    # ---------------------------
+    # ✅ รวมคะแนนทั้งหมด
+    # ---------------------------
+    total_score1 = mind_total + ordering1_score + summary1_score + spelling_score + score_s6
+    total_score2 = agreement_score + ordering2_score + summary2_score
+    total_all = total_score1 + total_score2
+
+    # ---------------------------
+    # ✅ คืนค่า JSON-safe
+    # ---------------------------
+    return convert_numpy_to_python({
+        # -------- ข้อที่ 1 --------
+        "ข้อที่ 1 - ใจความสำคัญ": {
+            **mind_score,
+            "คะแนนรวม": mind_total
+        },
+        "ข้อที่ 1 - การเรียงลำดับและการเชื่อมโยงความคิด": {
+            "score": ordering1_score,
+            **ordering1_details
+        },
+        "ข้อที่ 1 - ความถูกต้องตามหลักการเขียนย่อความ": {
+            "score": summary1_score,
+            **summary1_details
+        },
+        "ข้อที่ 1 - การสะกดคำ": {
+            "score": spelling_score,
+            "reasons": spelling_res.get("reasons", [])
+        },
+        "ข้อที่ 1 - การใช้ประโยค": s6_result,
+        "คะแนนรวมข้อที่ 1": total_score1,
+
+        # -------- ข้อที่ 2 --------
+        "ข้อที่ 2 - คำบอกข้อคิดเห็น": agreement_result,
+        "ข้อที่ 2 - การเรียงลำดับและการเชื่อมโยงความคิด": {
+            "score": ordering2_score,
+            **ordering2_details
+        },
+        "ข้อที่ 2 - ความถูกต้องตามหลักการแสดงความคิดเห็น": {
+            "score": summary2_score,
+            **summary2_details
+        },
+        "คะแนนรวมข้อที่ 2": total_score2,
+
+        # -------- รวมทั้งหมด --------
+        "คะแนนรวมทั้งหมด (15 คะแนน)": total_all
+    })
+
+
+
+
