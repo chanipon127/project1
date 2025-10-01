@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ผลการตรวจข้อสอบ</title>
+    <link rel="stylesheet" href="style.css"> <!-- ถ้าคุณมีไฟล์ CSS -->
+    <style>
+        /* CSS เพิ่มเติมเล็กน้อยเพื่อให้อ่านง่ายขึ้น */
+        body { font-family: sans-serif; line-height: 1.6; margin: 20px; }
+        .container { max-width: 900px; margin: auto; padding: 20px; border: 1px solid #ccc; border-radius: 8px; }
+        h1, h2 { color: #333; }
+        .info-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-bottom: 20px; }
+        .info-item { background-color: #f9f9f9; padding: 10px; border-radius: 4px; }
+        .info-item strong { display: block; margin-bottom: 5px; color: #555; }
+        textarea, .essay-box { width: 100%; min-height: 150px; padding: 10px; border: 1px solid #ddd; border-radius: 4px; background-color: #fff; white-space: pre-wrap; margin-top: 5px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        th, td { border: 1px solid #ddd; padding: 12px; text-align: left; }
+        th { background-color: #f2f2f2; }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <h1>ผลการตรวจข้อสอบด้วย AI</h1>
+
+        <div class="info-grid">
+            <div class="info-item">
+                <strong>รหัสนักเรียน:</strong>
+                <span id="studentId">กำลังโหลด...</span>
+            </div>
+            <div class="info-item">
+                <strong>ปีการศึกษา:</strong>
+                <span id="examYear">กำลังโหลด...</span>
+            </div>
+            <div class="info-item">
+                <strong>กลุ่มการสอบ:</strong>
+                <span id="groupId">กำลังโหลด...</span>
+            </div>
+            <div class="info-item">
+                <strong>คะแนนที่ AI ให้:</strong>
+                <span id="aiScore" style="font-weight: bold; font-size: 1.2em;">กำลังโหลด...</span>
+            </div>
+        </div>
+
+        <h2>คำตอบของนักเรียน</h2>
+        <div>
+            <strong>เรียงความ (Essay Text):</strong>
+            <div id="essayText" class="essay-box">กำลังโหลด...</div>
+        </div>
+        <div style="margin-top: 20px;">
+            <strong>บทวิเคราะห์ (Essay Analysis):</strong>
+            <div id="essayAnalysis" class="essay-box">กำลังโหลด...</div>
+        </div>
+
+        <h2>Feedback จาก AI</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>เกณฑ์การให้คะแนน</th>
+                    <th>คะแนน</th>
+                    <th>ความคิดเห็น</th>
+                </tr>
+            </thead>
+            <tbody id="feedbackTableBody">
+                <!-- ข้อมูลจะถูกใส่ที่นี่โดย JavaScript -->
+            </tbody>
+        </table>
+    </div>
+
+    <script>
+    async function loadAnswer(answerId) {
+        try {
+            const response = await fetch(`http://127.0.0.1:8000/api/view-score/${answerId}`);
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.detail || 'ไม่สามารถโหลดข้อมูลได้');
+            }
+            const data = await response.json();
+
+            // ========================= DEBUGGING START =========================
+            console.log("1. ข้อมูลดิบทั้งหมดที่ได้รับจาก API:", data);
+            console.log("2. ประเภทของ data.description:", typeof data.description);
+            // ========================= DEBUGGING END =========================
+
+            // แปลง description string เป็น object
+            let descriptionObj;
+            if (typeof data.description === 'string') {
+                try {
+                    descriptionObj = JSON.parse(data.description);
+                } catch (e) {
+                    console.error("เกิดข้อผิดพลาดในการแปลง description JSON:", e);
+                    descriptionObj = {}; 
+                }
+            } else {
+                descriptionObj = data.description || {};
+            }
+            
+            // ========================= DEBUGGING START =========================
+            console.log("3. Object 'description' หลังการแปลง:", descriptionObj);
+            // ========================= DEBUGGING END =========================
+
+
+            // แสดงข้อมูลพื้นฐาน
+            document.getElementById('studentId').textContent = data.student_id;
+            document.getElementById('examYear').textContent = data.exam_year;
+            document.getElementById('groupId').textContent = data.group_id;
+            document.getElementById('aiScore').textContent = data.score !== null ? data.score.toFixed(2) : 'N/A';
+            document.getElementById('essayText').textContent = data.essay_text;
+            document.getElementById('essayAnalysis').textContent = data.essay_analysis;
+
+            // สร้างตาราง Feedback
+            const feedbackTbody = document.getElementById('feedbackTableBody');
+            feedbackTbody.innerHTML = ''; 
+
+            // ตรวจสอบ key ที่เราคาดว่าชื่อ "feedback"
+            if (descriptionObj.feedback && Array.isArray(descriptionObj.feedback)) {
+                descriptionObj.feedback.forEach(item => {
+                    const row = document.createElement('tr');
+                    row.innerHTML = `
+                        <td>${item.criteria}</td>
+                        <td>${item.score}</td>
+                        <td>${item.comment}</td>
+                    `;
+                    feedbackTbody.appendChild(row);
+                });
+            } else {
+                // ถ้าไม่เจอ key 'feedback' จะมาทำงานที่นี่
+                feedbackTbody.innerHTML = '<tr><td colspan="3">ไม่พบข้อมูล Feedback จาก AI</td></tr>';
+            }
+
+        } catch (error) {
+            console.error('Error:', error);
+            document.body.innerHTML = `<h1>เกิดข้อผิดพลาด: ${error.message}</h1>`;
+        }
+    }
+
+    document.addEventListener("DOMContentLoaded", () => {
+        const urlParams = new URLSearchParams(window.location.search);
+        const answerId = urlParams.get("answer_id");
+        if (answerId) {
+            loadAnswer(answerId);
+        } else {
+            document.body.innerHTML = "<h1>ไม่พบ ID ของคำตอบ</h1>";
+        }
+    });
+</script>
+
+</body>
+</html>

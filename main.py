@@ -6,7 +6,9 @@ import psycopg2,psycopg2.extras
 from datetime import datetime
 import bcrypt
 import os
+import re
 import shutil
+import pandas as pd
 import numpy as np
 from fastapi import Query
 from typing import List
@@ -313,21 +315,104 @@ class Answer(BaseModel):
 
 
 # -----------------------
-# POST เพิ่มคำตอบ
-@app.post("/api/answers")
-def add_answer(answer: Answer):
+# POST เพิ่มคำตอบ(เป็นไฟล์)
+@app.post("/api/answers/upload")
+async def upload_answers(file: UploadFile = File(...)):
+    cursor = None
     try:
+        # ตรวจไฟล์
+        if not (file.filename.endswith(".csv") or file.filename.endswith(".xlsx")):
+            raise HTTPException(status_code=400, detail="รองรับเฉพาะ CSV หรือ Excel")
+
+        # อ่าน DataFrame
+        if file.filename.endswith(".csv"):
+            df = pd.read_csv(file.file)
+        else:
+            df = pd.read_excel(file.file)
+
+        # ตรวจว่ามีคอลัมน์พื้นฐาน
+        base_cols = {"student_id", "group_id", "exam_year", "essay_text", "essay_analysis"}
+        if not base_cols.issubset(df.columns):
+            raise HTTPException(
+                status_code=400,
+                detail=f"ต้องมีคอลัมน์พื้นฐาน: {base_cols}"
+            )
+
         cursor = conn.cursor()
-        cursor.execute("""
-            INSERT INTO answer (student_id, group_id, exam_year, essay_text, essay_analysis, status)
-            VALUES (%s, %s, %s, %s, %s, %s)
-        """, (answer.student_id, answer.group_id, answer.exam_year, answer.essay_text, answer.essay_analysis, answer.status))
+        inserted = 0
+
+        # เตรียมชื่อคอลัมน์คะแนน
+        score_cols_t1 = [f"score_s{i}_t1" for i in range(1, 14)]
+        score_cols_t2 = [f"score_s{i}_t2" for i in range(1, 14)]
+        score_cols = score_cols_t1 + score_cols_t2
+
+        for _, row in df.iterrows():
+            # --- ตรวจค่า student_id และ exam_year ---
+            student_id_val = row.get("student_id")
+            if pd.isna(student_id_val) or str(student_id_val).strip() == "":
+                continue  # ข้ามแถวที่ student_id ว่าง
+            student_id_val = str(student_id_val).strip()
+
+            if pd.isna(row["exam_year"]):
+                continue  # ข้ามแถวที่ exam_year ว่าง
+            exam_year_val = int(row["exam_year"])
+
+            group_id_val = row["group_id"]
+
+            # --- ตรวจว่าแถวนี้มีอยู่แล้วใน DB ---
+            cursor.execute("""
+                SELECT 1 FROM answer
+                WHERE student_id=%s AND exam_year=%s AND group_id=%s
+            """, (student_id_val, exam_year_val, group_id_val))
+            if cursor.fetchone():
+                continue  # มีอยู่แล้ว → ข้าม
+
+            # --- insert ตาราง answer ---
+            cursor.execute("""
+                INSERT INTO answer (student_id, group_id, exam_year, essay_text, essay_analysis, status)
+                VALUES (%s, %s, %s, %s, %s, %s)
+            """, (
+                student_id_val,
+                group_id_val,
+                exam_year_val,
+                str(row["essay_text"]),
+                str(row["essay_analysis"]),
+                "pending"
+            ))
+
+            # --- เตรียมคะแนน ---
+            scores = []
+            for col in score_cols:
+                val = row.get(col, None)
+                if pd.isna(val):
+                    scores.append(None)
+                else:
+                    try:
+                        scores.append(float(val))
+                    except ValueError:
+                        scores.append(None)
+
+            # --- insert ตาราง teacher_score ---
+            cursor.execute(f"""
+                INSERT INTO teacher_score (
+                    student_id, exam_year, group_id, {','.join(score_cols)}
+                )
+                VALUES (%s, %s, %s, {','.join(['%s']*len(score_cols))})
+            """, [student_id_val, exam_year_val, group_id_val] + scores)
+
+            inserted += 1
+
         conn.commit()
-        return {"message": "บันทึกคำตอบสำเร็จ"}
+        return {"message": "อัปโหลดสำเร็จ", "inserted": inserted}
+
     except Exception as e:
+        if conn:
+            conn.rollback()
         raise HTTPException(status_code=500, detail=str(e))
     finally:
-        cursor.close()
+        if cursor:
+            cursor.close()
+
 
 # GET ดึงคำตอบทั้งหมด
 @app.get("/api/answers-all")
@@ -358,6 +443,7 @@ def get_all_answers():
     finally:
         cursor.close()
 
+
 # 🔹 Pydantic Model
 # -------------------------------
 class Answer(BaseModel):
@@ -367,7 +453,6 @@ class Answer(BaseModel):
     essay_text: str
     essay_analysis: str
     status: str
-
 
 # -------------------------------
 # ✅ API: ดึงคำตอบทั้งหมด
@@ -410,36 +495,51 @@ async def check_answer(answer_id: int):
         if not row:
             raise HTTPException(status_code=404, detail="ไม่พบคำตอบ")
 
-        # ✅ ดึงทั้ง essay_text และ essay_analysis
         essay_text, essay_analysis = row
 
-        # 🔹 ตรวจด้วย AI
+        # ✅ เรียก AI
         result = evaluate_single_answer(essay_text, essay_analysis)
 
-        # แปลงเป็น dict หากจำเป็น
         if not isinstance(result, dict):
             result_dict = json.loads(result)
         else:
             result_dict = result
 
-        # ดึงคะแนนรวมทั้งหมด
-        total_score = float(result_dict.get("คะแนนรวมทั้งหมด (15 คะแนน)", 0))
+        # ✅ แปลงโครงสร้างให้ตรงกับที่ Frontend ต้องการ
+        formatted_description = {}
+        total_score = 0
+        
+        # วนลูปสร้าง s1-s13 จากผลลัพธ์ AI
+        for i in range(1, 14):
+            key = f"s{i}"
+            score_key = f"เกณฑ์ที่ {i}"  # หรือชื่อที่ AI ส่งมา เช่น "คะแนนข้อ {i}"
+            
+            # ดึงคะแนนและ feedback จาก AI
+            score = result_dict.get(score_key, {}).get("score", 0)
+            feedback = result_dict.get(score_key, {}).get("feedback", "-")
+            
+            formatted_description[key] = {
+                "score": score,
+                "feedback": feedback
+            }
+            
+            total_score += float(score)
 
-        # 🔹 บันทึกลง DB
+        # ✅ บันทึกลงฐานข้อมูล
         cursor.execute("""
             UPDATE answer
             SET score=%s,
                 status='ตรวจแล้ว',
                 description=%s
             WHERE answer_id = %s
-        """, (total_score, json.dumps(result_dict, ensure_ascii=False), answer_id))
+        """, (total_score, json.dumps(formatted_description, ensure_ascii=False), answer_id))
 
         conn.commit()
 
         return {
             "message": "ตรวจคำตอบสำเร็จ",
             "score": total_score,
-            "description": result_dict
+            "description": formatted_description
         }
 
     except Exception as e:
@@ -449,48 +549,54 @@ async def check_answer(answer_id: int):
         cursor.close()
 
 
-
-
 # -----------------------------
-# API: ดูผลคำตอบ
+# API: ดูผลคำตอบ + คะแนนครู (เวอร์ชันปรับปรุง)
 # -----------------------------
 @app.get("/api/view-score/{answer_id}")
 def view_score(answer_id: int):
-    cur = None
     try:
         cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+
+        # ดึงคำตอบหลัก
         cur.execute("""
             SELECT answer_id, student_id, group_id, exam_year,
-                   essay_text, essay_analysis, score, status, description
+                   essay_text, essay_analysis, status, score, description
             FROM answer
             WHERE answer_id = %s
         """, (answer_id,))
-        row = cur.fetchone()
-        if not row:
-            raise HTTPException(status_code=404, detail="ไม่พบคำตอบ")
+        answer = cur.fetchone()
+        if not answer:
+            raise HTTPException(status_code=404, detail="ไม่พบคำตอบนี้")
 
-        # แปลง description จาก JSON string เป็น dict
-        if row['description']:
-            try:
-                description_data = json.loads(row['description'])
-            except Exception:
-                description_data = {}
-        else:
-            description_data = {}
+        # ดึงคะแนนครู (teacher_score)
+        cur.execute("""
+            SELECT * FROM teacher_score
+            WHERE student_id = %s AND exam_year = %s AND group_id = %s
+        """, (answer["student_id"], answer["exam_year"], answer["group_id"]))
+        teacher_row = cur.fetchone()
 
+        teacher_scores = {"teacher1": {}, "teacher2": {}}
+        if teacher_row:
+            for i in range(1, 14):
+                teacher_scores["teacher1"][f"s{i}"] = teacher_row.get(f"score_s{i}_t1")
+                teacher_scores["teacher2"][f"s{i}"] = teacher_row.get(f"score_s{i}_t2")
+
+        # ✅ ส่งออกเป็น JSON
         return {
-            "answer_id": row['answer_id'],
-            "student_id": row['student_id'],
-            "group_id": row['group_id'],
-            "exam_year": row['exam_year'],
-            "essay_text": row['essay_text'],
-            "essay_analysis": row.get('essay_analysis', ''),
-            "score": row['score'],
-            "status": row['status'],
-            "description": description_data
+            "answer_id": answer["answer_id"],
+            "student_id": answer["student_id"],
+            "group_id": answer["group_id"],
+            "exam_year": answer["exam_year"],
+            "essay_text": answer["essay_text"],
+            "essay_analysis": answer["essay_analysis"],
+            "status": answer["status"],
+            "score": answer["score"],
+            "description": answer["description"],   # <- JSON ที่มี score/feedback ของ AI
+            "teacher_scores": teacher_scores
         }
 
-    finally:
-        if cur:
-            cur.close()
-            
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+

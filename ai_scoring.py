@@ -186,7 +186,7 @@ def evaluate_mind_score(answer_text):
         "ใจความที่ 2": score2,
         "ใจความที่ 3": score3,
         "ใจความที่ 4": score4,
-        "คะแนนรวมใจความ ": total_score
+        "คะแนนรวมใจความ": total_score
     }
 
     return result
@@ -502,86 +502,14 @@ def evaluate_text(text):
 # ==========================
 # S2---ฟังก์ชันตรวจเรียงลำดับ/เชื่อมโยงความคิด
 # ==========================
-AIFORTHAI_URL = "https://api.aiforthai.in.th/qaiapp"
-AIFORTHAI_HEADERS = {
-    'Content-Type': "application/json",
-    'apikey': "zyHC3BNtLiesIuTj2UMlQd8DhrVXBxzM",
-}
-questions = [
-    {"question": "เป็นไปตามเหตุและผล ตอบ ใช่ หรือ ไม่ใช่",
-     "check": lambda ans: ans.strip() == "ใช่"},
-    {"question": "มีเนื้อความซ้ำ ถ้ามีตอบว่าที่ประโยคไหน",
-     "check": lambda ans: "ไม่มี" in ans.strip()},
-    {"question": "มีเนื้อความไม่สัมพันธ์กัน ถ้ามีตอบว่าที่ประโยคไหน",
-     "check": lambda ans: "ไม่มี" in ans.strip()},
-    {"question": "มีเนื้อความขาด ถ้ามีตอบว่าที่ประโยคไหน",
-      "check": lambda ans: ans.strip().startswith("ไม่มี")}
-]
 
-def evaluate_ordering_and_coherence(student_answer):
-    """
-    ตรวจเรียงลำดับความคิดและความสัมพันธ์ของเนื้อหา
-    ใช้ AI for Thai Q&A API
-    """
-    answers = []
-    wrong_count = 0
-
-    for idx, q in enumerate(questions, start=1):
-        while True:
-            payload = json.dumps({
-                "question": q["question"],
-                "document": student_answer
-            })
-
-            try:
-                response = requests.post(
-                    AIFORTHAI_URL, data=payload, headers=AIFORTHAI_HEADERS, timeout=10
-                )
-            except requests.exceptions.RequestException as e:
-                print(f"⚠️ เกิดข้อผิดพลาด: {e}, รอแล้วลองใหม่...")
-                time.sleep(1)
-                continue
-
-            if response.status_code == 200:
-                result = response.json()
-                answer = result.get("answer", "").strip()
-
-                if answer and answer.lower() not in ["", "ไม่พบคำตอบ"]:
-                    answers.append(answer)
-                    if not q["check"](answer):
-                        wrong_count += 1
-                    break
-                else:
-                    print(f"⏳ ยังไม่ได้คำตอบ ลองใหม่...")
-            else:
-                print(f"⚠️ Error {response.status_code}: {response.text}")
-
-            time.sleep(0.5)
-
-    # คำนวณคะแนน (2 = ดี, 1 = พอใช้, 0 = แย่)
-    if wrong_count == 0:
-        score = 2
-    elif wrong_count == 1:
-        score = 1
-    else:
-        score = 0
-
-    # ✅ เพิ่ม details ตรงนี้
-    return {
-        "answers": answers,
-        "score": score,
-        "details": {
-            "wrong_count": wrong_count,
-            "answers_checked": answers
-        }
-    }
 
 
 
 #---------S3 ความถูกต้องตามหลักการเขียนย่อความ-------------
 # ---------- ตั้งค่า ----------
 TNER_URL = 'https://api.aiforthai.in.th/tner'
-AIFORTHAI_URL = "https://api.aiforthai.in.th/qaiapp"
+#AIFORTHAI_URL = "https://api.aiforthai.in.th/qaiapp"
 
 
 # ---------- โหลด Dataset ----------
@@ -664,11 +592,11 @@ client = openai.OpenAI(
 )
 
 # ---------------- AI for Thai API ----------------
-aiforthai_url = "https://api.aiforthai.in.th/qaiapp"
-aiforthai_headers = {
-    'Content-Type': "application/json",
-    'apikey': "zyHC3BNtLiesIuTj2UMlQd8DhrVXBxzM",
-}
+#aiforthai_url = "https://api.aiforthai.in.th/qaiapp"
+#aiforthai_headers = {
+#    'Content-Type': "application/json",
+#    'apikey': "pHeDDSTgNpK4jLxoHXDQsdt3b9LC5yRL",
+#}
 
 # ---------------- ฟังก์ชัน Typhoon ----------------
 def ask_typhoon(question, document):
@@ -684,25 +612,7 @@ def ask_typhoon(question, document):
     return response.choices[0].message.content.strip()
 
 # ---------------- ฟังก์ชัน AI for Thai ----------------
-def ask_aiforthai_until_answer(question, document, wait_sec=2):
-    question_clean = " ".join(question.split())
-    attempt = 0
-    while True:
-        attempt += 1
-        payload = json.dumps({"question": question_clean, "document": document})
-        try:
-            response = requests.post(aiforthai_url, data=payload, headers=aiforthai_headers, timeout=10)
-        except requests.exceptions.RequestException as e:
-            print(f"⚠️ API Error: {e} (retry {attempt})")
-            time.sleep(wait_sec)
-            continue
 
-        if response.status_code == 200:
-            result = response.json()
-            answer = result.get("answer", "").strip()
-            if answer and ("ไม่พบ" not in answer) and ("ไม่สามารถตรวจได้" not in answer):
-                return answer
-        time.sleep(wait_sec)
 
 
 #------------------S7 คำบอกข้อคิดเห็น --------------------
@@ -737,53 +647,11 @@ def evaluate_agreement_with_reference(answer: str, reference_text: str, threshol
     }
 
 #------------------S9 การเรียงลำดับ --------------------
-def evaluate_ordering_and_coherence(essay_analysis):
-    answers = []
-    wrong_details = []
-    wrong_count = 0
 
-    for idx, q in enumerate(questions, start=1):
-        while True:
-            payload = json.dumps({"question": q["question"], "document": essay_analysis})
-            try:
-                response = requests.post(AIFORTHAI_URL, data=payload, headers=AIFORTHAI_HEADERS, timeout=10)
-            except requests.exceptions.RequestException:
-                time.sleep(1)
-                continue
-
-            if response.status_code == 200:
-                result = response.json()
-                answer = result.get("answer", "").strip()
-                if answer and answer.lower() not in ["", "ไม่พบคำตอบ"]:
-                    answers.append(answer)
-                    if not q["check"](answer):
-                        wrong_count += 1
-                        wrong_details.append(f"ข้อ {idx} ({q['question']}) → {answer}")
-                    break
-            time.sleep(0.5)
-
-    if wrong_count == 0:
-        score = 3
-    elif wrong_count == 1:
-        score = 2
-    elif wrong_count == 2:
-        score = 1
-    else:
-        score = 0
-
-    return {
-        "answers": answers,
-        "score": score,
-        "details": {
-            "wrong_count": wrong_count,
-            "wrong_details": wrong_details if wrong_details else ["ถูกทั้งหมด"],
-            "answers_checked": answers
-        }
-    }
 
 #------------------S10 ความถูกต้องตามหลักการเขียนแสดงความคิดเห็น --------------------
-TNER_API_KEY = 'zyHC3BNtLiesIuTj2UMlQd8DhrVXBxzM'
-CYBERBULLY_API_KEY = 'zyHC3BNtLiesIuTj2UMlQd8DhrVXBxzM'
+TNER_API_KEY = 'pHeDDSTgNpK4jLxoHXDQsdt3b9LC5yRL'
+CYBERBULLY_API_KEY = 'pHeDDSTgNpK4jLxoHXDQsdt3b9LC5yRL'
 
 personal_pronoun_1 = {"หนู", "ข้า", "กู"}
 personal_pronoun_2 = {"คุณ", "แก", "เธอ", "ตัวเอง", "เอ็ง", "มึง"}
@@ -928,9 +796,7 @@ def evaluate_single_answer(answer_text, essay_analysis):
         total_score1 = 0
     else:
         # 2) เรียงลำดับความคิด
-        ordering1 = evaluate_ordering_and_coherence(answer_text)
-        ordering1_score = float(ordering1.get("score", 0))
-        ordering1_details = convert_numpy_to_python(ordering1.get("details", {}))
+
 
         # 3) ความถูกต้องตามหลักการย่อความ
         summary1_score, summary1_err, summary1_details = validate_student_answer(answer_text)
@@ -943,34 +809,7 @@ def evaluate_single_answer(answer_text, essay_analysis):
         spelling_reason = str(spelling_res.get("reasons", ""))
 
         # 5) การใช้ประโยค (S6)
-        try:
-            q1 = "หาประธาน กริยา กรรมในประโยคทั้งหมด ของแต่ละประโยค ตอบเป็นคำ"
-            ans1_raw = ask_typhoon(q1, answer_text)
-            ans1_lines = [line.strip() for line in ans1_raw.split("\n\n") if line.strip()]
-        except Exception as e:
-            ans1_lines = [f"API Error Typhoon: {e}"]
-        try:
-            q2_raw = "ประโยคที่ไม่สื่อความหมายหรือไม่เข้าใจที่จะสื่อ"
-            ans2_lines = ask_aiforthai_until_answer(q2_raw, answer_text)
-        except Exception as e:
-            ans2_lines = f"API Error AI for Thai: {e}"
 
-        score_s6 = 1.0
-        missing_count = len(re.findall(r"\(ไม่ระบุ\)", "\n".join(ans1_lines)))
-        score_s6 -= 0.5 * missing_count
-        if isinstance(ans2_lines, str):
-            if ans2_lines.strip() and not ans2_lines.strip().startswith("ไม่มี"):
-                score_s6 -= 0.5
-        else:
-            if ans2_lines and not str(ans2_lines[0]).startswith("ไม่มี"):
-                score_s6 -= 0.5
-        score_s6 = float(max(score_s6, 0))
-
-        s6_result = {
-            "score": score_s6,
-            "Q1_detail": ans1_lines,
-            "Q2_detail": ans2_lines if isinstance(ans2_lines, list) else [ans2_lines]
-        }
     
 
     # ---------------------------
@@ -1001,9 +840,7 @@ def evaluate_single_answer(answer_text, essay_analysis):
         })
 
     # 2) เรียงลำดับความคิด
-    ordering2 = evaluate_ordering_and_coherence(essay_analysis)
-    ordering2_score = float(ordering2.get("score", 0))
-    ordering2_details = convert_numpy_to_python(ordering2.get("details", {}))
+
 
     # 3) ความถูกต้องตามหลักการแสดงความคิดเห็น
     summary2_score, summary2_err, summary2_details = validate_student_answer(essay_analysis)
@@ -1013,8 +850,8 @@ def evaluate_single_answer(answer_text, essay_analysis):
     # ---------------------------
     # ✅ รวมคะแนนทั้งหมด
     # ---------------------------
-    total_score1 = mind_total + ordering1_score + summary1_score + spelling_score + score_s6
-    total_score2 = agreement_score + ordering2_score + summary2_score
+    total_score1 = mind_total + summary1_score + spelling_score
+    total_score2 = agreement_score  + summary2_score
     total_all = total_score1 + total_score2
 
     # ---------------------------
@@ -1026,10 +863,6 @@ def evaluate_single_answer(answer_text, essay_analysis):
             **mind_score,
             "คะแนนรวม": mind_total
         },
-        "ข้อที่ 1 - การเรียงลำดับและการเชื่อมโยงความคิด": {
-            "score": ordering1_score,
-            **ordering1_details
-        },
         "ข้อที่ 1 - ความถูกต้องตามหลักการเขียนย่อความ": {
             "score": summary1_score,
             **summary1_details
@@ -1038,25 +871,16 @@ def evaluate_single_answer(answer_text, essay_analysis):
             "score": spelling_score,
             "reasons": spelling_res.get("reasons", [])
         },
-        "ข้อที่ 1 - การใช้ประโยค": s6_result,
-        "คะแนนรวมข้อที่ 1": total_score1,
 
         # -------- ข้อที่ 2 --------
         "ข้อที่ 2 - คำบอกข้อคิดเห็น": agreement_result,
-        "ข้อที่ 2 - การเรียงลำดับและการเชื่อมโยงความคิด": {
-            "score": ordering2_score,
-            **ordering2_details
-        },
         "ข้อที่ 2 - ความถูกต้องตามหลักการแสดงความคิดเห็น": {
             "score": summary2_score,
             **summary2_details
         },
+        "คะแนนรวมข้อที่ 1": total_score1,
         "คะแนนรวมข้อที่ 2": total_score2,
 
         # -------- รวมทั้งหมด --------
         "คะแนนรวมทั้งหมด (15 คะแนน)": total_all
     })
-
-
-
-
