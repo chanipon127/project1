@@ -47,15 +47,14 @@
       padding: 20px;
       gap: 20px;
       overflow-x: auto;
+      flex-direction: column;
     }
 
-    .form-container,
-    .table-container {
+    .form-container {
       background: white;
       padding: 20px;
       border-radius: 10px;
       box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
-      flex: 1;
       min-width: 300px;
     }
 
@@ -98,29 +97,39 @@
       opacity: 0.8;
     }
 
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      margin-top: 10px;
-      background: white;
+    .hidden {
+      display: none;
     }
 
-    th,
-    td {
-      padding: 10px;
-      border-bottom: 1px solid #ddd;
-      text-align: left;
+    /* ปุ่ม toggle แบบสวยๆ */
+    .toggle-buttons {
+      display: flex;
+      gap: 10px;
+      justify-content: center;
+      margin-bottom: 20px;
     }
 
-    th {
-      background: #3b5bdb;
+    .toggle-buttons input[type="radio"] {
+      display: none;
+    }
+
+    .toggle-buttons label {
+      flex: 1;
+      text-align: center;
+      padding: 12px 20px;
+      border-radius: 8px;
+      border: 2px solid #3b5bdb;
+      background-color: white;
+      color: #3b5bdb;
+      cursor: pointer;
+      font-weight: bold;
+      transition: all 0.3s;
+      user-select: none;
+    }
+
+    .toggle-buttons input[type="radio"]:checked+label {
+      background-color: #3b5bdb;
       color: white;
-    }
-
-    @media (max-width: 1000px) {
-      main.content {
-        flex-direction: column;
-      }
     }
   </style>
 </head>
@@ -139,56 +148,150 @@
   </nav>
 
   <main class="content">
-    <!-- ฟอร์มเพิ่มคำตอบ -->
+    <!-- เลือกประเภทการเพิ่มคำตอบ -->
     <div class="form-container">
+      <h1>เลือกประเภทการเพิ่มคำตอบ</h1>
+      <div class="toggle-buttons">
+        <input type="radio" id="single" name="answerType" value="single">
+        <label for="single">กรอกคำตอบเดี่ยว</label>
+
+        <input type="radio" id="file" name="answerType" value="file">
+        <label for="file">อัปโหลดไฟล์</label>
+      </div>
+    </div>
+
+    <!-- ฟอร์มกรอกคำตอบเดี่ยว -->
+    <div class="form-container hidden" id="singleForm">
+      <h1>เพิ่มคำตอบนักเรียน (เดี่ยว)</h1>
+      <form id="answerForm">
+        <label>รหัสนักเรียน</label>
+        <input type="number" name="student_id" placeholder="เช่น 8555555555" required>
+
+        <label>ชั้นเรียน</label>
+        <select name="group_id" required>
+          <option value="M3/68">มัธยมศึกษาปีที่ 3</option>
+        </select>
+
+        <label>ปีการสอบ</label>
+        <select name="exam_year" required>
+          <option value="2568">2568</option>
+        </select>
+
+        <label>คำตอบข้อที่ 1</label>
+        <textarea name="essay_text" rows="4" placeholder="กรอกคำตอบข้อที่ 1" required></textarea>
+
+        <label>คำตอบข้อที่ 2</label>
+        <textarea name="essay_analysis" rows="4" placeholder="กรอกคำตอบข้อที่ 2" required></textarea>
+
+        <button type="submit">บันทึกคำตอบ</button>
+      </form>
+      <p id="messageForm" style="margin-top:10px;"></p>
+    </div>
+
+    <!-- ฟอร์มอัปโหลดไฟล์ -->
+    <div class="form-container hidden" id="fileForm">
       <h1>อัปโหลดคำตอบนักเรียน (Excel/CSV)</h1>
       <form id="uploadForm" enctype="multipart/form-data">
         <label>เลือกไฟล์คำตอบ</label>
         <input type="file" id="fileInput" name="file" accept=".csv,.xlsx" required>
-
         <button type="submit">อัปโหลดไฟล์</button>
       </form>
-      <p id="message" style="margin-top:10px;"></p>
+      <p id="messageUpload" style="margin-top:10px;"></p>
     </div>
+  </main>
 
-    <script>
-      const API_BASE = 'http://127.0.0.1:8000';
-      const uploadForm = document.getElementById('uploadForm');
-      const message = document.getElementById('message');
+  <script>
+    const API_BASE = 'http://127.0.0.1:8000';
 
-      uploadForm.addEventListener('submit', async (e) => {
-        e.preventDefault();
-        message.textContent = '';
+    // --- เลือกประเภทฟอร์ม ---
+    const radioButtons = document.querySelectorAll('input[name="answerType"]');
+    const singleForm = document.getElementById('singleForm');
+    const fileForm = document.getElementById('fileForm');
 
-        const fileInput = document.getElementById('fileInput');
-        if (!fileInput.files.length) {
-          message.style.color = 'red';
-          message.textContent = 'กรุณาเลือกไฟล์ก่อน';
-          return;
-        }
-
-        const formData = new FormData();
-        formData.append("file", fileInput.files[0]);
-
-        try {
-          const res = await fetch(`${API_BASE}/api/answers/upload`, {
-            method: 'POST',
-            body: formData
-          });
-
-          const result = await res.json();
-          if (!res.ok) throw new Error(result.detail || `Error ${res.status}`);
-
-          message.style.color = 'green';
-          message.textContent = `อัปโหลดสำเร็จ: ${result.inserted} รายการ`;
-        } catch (err) {
-          console.error('upload error:', err);
-          message.style.color = 'red';
-          message.textContent = 'เกิดข้อผิดพลาด: ' + (err.message || err);
+    radioButtons.forEach(radio => {
+      radio.addEventListener('change', () => {
+        if (radio.value === 'single') {
+          singleForm.classList.remove('hidden');
+          fileForm.classList.add('hidden');
+        } else if (radio.value === 'file') {
+          fileForm.classList.remove('hidden');
+          singleForm.classList.add('hidden');
         }
       });
-    </script>
+    });
+
+    // --- ฟอร์มกรอกคำตอบเดี่ยว ---
+    const form = document.getElementById('answerForm');
+    const messageForm = document.getElementById('messageForm');
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      messageForm.textContent = '';
+      const formData = new FormData(form);
+      const data = Object.fromEntries(formData.entries());
+      data.student_id = parseInt(data.student_id);
+      data.exam_year = parseInt(data.exam_year);
+      data.status = "ยังไม่ได้ตรวจ";
+
+      try {
+        const res = await fetch(`${API_BASE}/api/answers`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(data)
+        });
+        const result = await res.json();
+
+        if (!res.ok) throw new Error(result.message || result.detail || `Error ${res.status}`);
+
+        messageForm.style.color = 'green';
+        messageForm.textContent = 'บันทึกสำเร็จ';
+        form.reset();
+
+      } catch (err) {
+        console.error('submit error:', err);
+        messageForm.style.color = 'red';
+        messageForm.textContent = 'เกิดข้อผิดพลาด: ' + (err.message || err);
+      }
+    });
+
+    // --- ฟอร์มอัปโหลดไฟล์ ---
+    const uploadForm = document.getElementById('uploadForm');
+    const messageUpload = document.getElementById('messageUpload');
+
+    uploadForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      messageUpload.textContent = '';
+
+      const fileInput = document.getElementById('fileInput');
+      if (!fileInput.files.length) {
+        messageUpload.style.color = 'red';
+        messageUpload.textContent = 'กรุณาเลือกไฟล์ก่อน';
+        return;
+      }
+
+      const formData = new FormData();
+      formData.append("file", fileInput.files[0]);
+
+      try {
+        const res = await fetch(`${API_BASE}/api/answers/upload`, {
+          method: 'POST',
+          body: formData
+        });
+
+        const result = await res.json();
+        if (!res.ok) throw new Error(result.detail || `Error ${res.status}`);
+
+        messageUpload.style.color = 'green';
+        messageUpload.textContent = `อัปโหลดสำเร็จ: ${result.inserted} รายการ`;
+        uploadForm.reset();
+      } catch (err) {
+        console.error('upload error:', err);
+        messageUpload.style.color = 'red';
+        messageUpload.textContent = 'เกิดข้อผิดพลาด: ' + (err.message || err);
+      }
+    });
+  </script>
 
 </body>
-
 </html>
+

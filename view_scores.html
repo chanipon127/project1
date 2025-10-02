@@ -239,54 +239,196 @@
         document.getElementById("examYear").textContent = data.exam_year;
         document.getElementById("status").textContent = data.status;
         document.getElementById("status").className = "status " + (data.status === 'ตรวจแล้ว' ? 'checked' : 'unchecked');
-        document.getElementById("score").textContent = data.score || 0;
         document.getElementById("essayText").textContent = data.essay_text || "";
         document.getElementById("essayAnalysis").textContent = data.essay_analysis || "";
 
-        // --- อัปเดตตาราง feedback ---
+        // ========== แปลงข้อมูล JSON ==========
+        let parsedDescription = {};
+        try {
+          if (data.description) {
+            parsedDescription = typeof data.description === 'string' ? JSON.parse(data.description) : data.description;
+          }
+          console.log("✅ Parsed description:", parsedDescription);
+        } catch (e) {
+          console.error("❌ Error parsing description:", e);
+        }
+
+        // 🔥 แก้ไขคะแนนที่ผิดพลาด (ดึงจาก feedback)
+        Object.keys(parsedDescription).forEach(key => {
+          const item = parsedDescription[key];
+
+          if (item.score === 0 && item.feedback) {
+            try {
+              const feedbackObj = typeof item.feedback === 'string' ? JSON.parse(item.feedback) : item.feedback;
+
+              if (key === 's1' && feedbackObj['คะแนนรวม'] != null) {
+                item.score = parseFloat(feedbackObj['คะแนนรวม']);
+                console.log(`🔧 แก้ไข ${key}: 0 → ${item.score}`);
+              }
+
+              if (key === 's8' && feedbackObj.score_total != null) {
+                item.score = parseFloat(feedbackObj.score_total);
+                console.log(`🔧 แก้ไข ${key}: 0 → ${item.score}`);
+              }
+
+              if ((key === 's3' || key === 's10') && feedbackObj.score != null && item.score === 0) {
+                item.score = parseFloat(feedbackObj.score);
+                console.log(`🔧 แก้ไข ${key}: 0 → ${item.score}`);
+              }
+
+            } catch (e) {
+              console.warn(`⚠️ ไม่สามารถ parse feedback ของ ${key}:`, e);
+            }
+          }
+        });
+
+        let teacherScores = {};
+        try {
+          if (data.teacher_scores) {
+            teacherScores = typeof data.teacher_scores === 'string' ? JSON.parse(data.teacher_scores) : data.teacher_scores;
+          }
+          console.log("✅ Parsed teacherScores:", teacherScores);
+        } catch (e) {
+          console.error("❌ Error parsing teacher_scores:", e);
+        }
+
+        // 🔥 คำนวณคะแนนรวม AI
+        let totalAIScore = 0;
+        Object.keys(parsedDescription).forEach(key => {
+          if (key.startsWith('s') && parsedDescription[key]?.score != null) {
+            totalAIScore += parseFloat(parsedDescription[key].score);
+          }
+        });
+
+        console.log("📊 คะแนนรวม AI:", totalAIScore);
+        document.getElementById("score").textContent = totalAIScore.toFixed(1);
+
+        // ========== สร้างตาราง ==========
         const feedbackTable = document.getElementById("feedbackTable");
         feedbackTable.innerHTML = "";
 
-        for (let i = 1; i <= 13; i++) {
-          let aiScore = "";
-          let fb = "";
+        const criteriaOrder = [
+          { type: 'header', text: '--- ข้อที่ 1: การเขียนย่อความ (10 คะแนน) ---' },
+          "s1", "s2", "s3", "s4", "s5", "s6",
+          { type: 'summary', part: 1 },
+          { type: 'header', text: '--- ข้อที่ 2: การแสดงความคิดเห็น (20 คะแนน) ---' },
+          "s7", "s8", "s9", "s10", "s11", "s12", "s13",
+          { type: 'summary', part: 2 },
+          { type: 'grand_total' }  // 🔥 เพิ่มคะแนนรวมทั้งหมด
+        ];
 
-          if (data.description && data.description["s" + i]) {
-            const desc = data.description["s" + i];
-            if (typeof desc === "object") {
-              const possibleKeys = ["score", "คะแนนรวม", "คะแนนรวมใจความ "];
-              for (let k of possibleKeys) {
-                if (k in desc) {
-                  aiScore = desc[k];
-                  break;
-                }
-              }
-              fb = JSON.stringify(desc, null, 2);
-            } else {
-              aiScore = desc;
+        const criteriaNameMapping = {
+          s1: 'ใจความสำคัญ (4 คะแนน)',
+          s2: 'การเรียงลำดับและเชื่อมโยงความคิด (2 คะแนน)',
+          s3: 'ความถูกต้องตามหลักการเขียนย่อความ (1 คะแนน)',
+          s4: 'การสะกดคำ (1 คะแนน)',
+          s5: 'การใช้คำ/ถ้อยคำสำนวน (1 คะแนน)',
+          s6: 'การใช้ประโยค (1 คะแนน)',
+          s7: 'คำบอกข้อคิดเห็น (2 คะแนน)',
+          s8: 'เหตุผลสนับสนุน (5 คะแนน)',
+          s9: 'การเรียงลำดับและเชื่อมโยงความคิด (1 คะแนน)',
+          s10: 'ความถูกต้องตามหลักการแสดงความคิดเห็น (1 คะแนน)',
+          s11: 'การสะกดคำ/การใช้ภาษา (1 คะแนน)',
+          s12: 'การใช้คำ/ถ้อยคำสำนวน (1 คะแนน)',
+          s13: 'การใช้ประโยค (1 คะแนน)',
+        };
+
+        let totals = {
+          ai: { part1: 0, part2: 0 },
+          teacher1: { part1: 0, part2: 0 },
+          teacher2: { part1: 0, part2: 0 }
+        };
+
+        criteriaOrder.forEach(item => {
+          if (typeof item === 'object') {
+            if (item.type === 'header') {
+              const headerRow = document.createElement("tr");
+              headerRow.innerHTML = `<td colspan="5" style="background-color: #e9ecef; font-weight: bold; text-align: center;">${item.text}</td>`;
+              feedbackTable.appendChild(headerRow);
             }
+            else if (item.type === 'summary') {
+              const part = `part${item.part}`;
+              const summaryRow = document.createElement("tr");
+              summaryRow.style.background = "#f0f8ff";
+              summaryRow.style.fontWeight = "bold";
+              summaryRow.innerHTML = `
+            <td>คะแนนรวมข้อที่ ${item.part}</td>
+            <td class="score-cell score-ai">${totals.ai[part].toFixed(1)}</td>
+            <td class="score-cell score-teacher">${totals.teacher1[part] > 0 ? totals.teacher1[part].toFixed(1) : '-'}</td>
+            <td class="score-cell score-teacher">${totals.teacher2[part] > 0 ? totals.teacher2[part].toFixed(1) : '-'}</td>
+            <td>-</td>
+          `;
+              feedbackTable.appendChild(summaryRow);
+            }
+            // 🔥 เพิ่มคะแนนรวมทั้งหมด
+            else if (item.type === 'grand_total') {
+              const grandTotalRow = document.createElement("tr");
+              grandTotalRow.style.background = "#d4edda";
+              grandTotalRow.style.fontWeight = "bold";
+              grandTotalRow.style.fontSize = "16px";
+
+              const totalAI = totals.ai.part1 + totals.ai.part2;
+              const totalT1 = totals.teacher1.part1 + totals.teacher1.part2;
+              const totalT2 = totals.teacher2.part1 + totals.teacher2.part2;
+
+              grandTotalRow.innerHTML = `
+            <td style="text-align: center; background-color: #28a745; color: white;">🏆 คะแนนรวมทั้งหมด (30 คะแนน)</td>
+            <td class="score-cell" style="background-color: #d1ecf1; color: #004085; font-size: 18px;">${totalAI.toFixed(1)}</td>
+            <td class="score-cell" style="background-color: #d4edda; color: #155724; font-size: 18px;">${totalT1 > 0 ? totalT1.toFixed(1) : '-'}</td>
+            <td class="score-cell" style="background-color: #d4edda; color: #155724; font-size: 18px;">${totalT2 > 0 ? totalT2.toFixed(1) : '-'}</td>
+            <td style="background-color: #d4edda;">-</td>
+          `;
+              feedbackTable.appendChild(grandTotalRow);
+            }
+            return;
           }
 
-          const teacher1 = data.teacher_scores?.teacher1?.["s" + i] ?? "-";
-          const teacher2 = data.teacher_scores?.teacher2?.["s" + i] ?? "-";
+          const sKey = item;
+          const criteriaData = parsedDescription[sKey];
 
-          const row = document.createElement("tr");
-          row.innerHTML = `
-          <td style="text-align:center">เกณฑ์ ${i}</td>
-          <td style="text-align:center">${aiScore}</td>
-          <td style="text-align:center">${teacher1}</td>
-          <td style="text-align:center">${teacher2}</td>
-          <td><pre>${fb}</pre></td>
+          if (criteriaData) {
+            const criteriaName = criteriaNameMapping[sKey] || sKey;
+            const aiScore = parseFloat(criteriaData.score ?? 0);
+
+            const part = parseInt(sKey.substring(1)) <= 6 ? 'part1' : 'part2';
+            totals.ai[part] += aiScore;
+
+            const t1ScoreStr = teacherScores?.teacher1?.[sKey];
+            const t2ScoreStr = teacherScores?.teacher2?.[sKey];
+            const teacher1 = t1ScoreStr != null && t1ScoreStr !== '' ? parseFloat(t1ScoreStr).toFixed(1) : "-";
+            const teacher2 = t2ScoreStr != null && t2ScoreStr !== '' ? parseFloat(t2ScoreStr).toFixed(1) : "-";
+
+            if (teacher1 !== '-') totals.teacher1[part] += parseFloat(teacher1);
+            if (teacher2 !== '-') totals.teacher2[part] += parseFloat(teacher2);
+
+            let details = "-";
+            if (criteriaData.feedback) {
+              try {
+                const feedbackObj = JSON.parse(criteriaData.feedback);
+                details = JSON.stringify(feedbackObj, null, 2);
+              } catch (e) {
+                details = criteriaData.feedback;
+              }
+            }
+
+            const row = document.createElement("tr");
+            row.innerHTML = `
+          <td>${criteriaName}</td>
+          <td class="score-cell score-ai">${aiScore.toFixed(1)}</td>
+          <td class="score-cell score-teacher">${teacher1}</td>
+          <td class="score-cell score-teacher">${teacher2}</td>
+          <td><pre>${details}</pre></td>
         `;
-          feedbackTable.appendChild(row);
-        }
+            feedbackTable.appendChild(row);
+          }
+        });
 
-      } catch (err) {
-        alert("เกิดข้อผิดพลาด: " + err.message);
+      } catch (error) {
+        console.error("❌ เกิดข้อผิดพลาด:", error);
+        alert("เกิดข้อผิดพลาด: " + error.message);
       }
     }
   </script>
-
 </body>
 
 </html>
