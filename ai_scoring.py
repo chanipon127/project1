@@ -8,11 +8,15 @@ import time
 import pandas as pd
 import openai
 import numpy as np
+import spacy_thai
+from pythainlp.tokenize import sent_tokenize
+from transformers import pipeline
 from sentence_transformers import SentenceTransformer, util
 from pythainlp.tokenize import word_tokenize
 from pythainlp.corpus import thai_words
 from pythainlp.tag import pos_tag
 from pythainlp.util import normalize
+from pythainlp.spell import spell
 from sklearn.metrics.pairwise import cosine_similarity
 
 # โหลดโมเดล
@@ -502,8 +506,132 @@ def evaluate_text(text):
 # ==========================
 # S2---ฟังก์ชันตรวจเรียงลำดับ/เชื่อมโยงความคิด
 # ==========================
+ignore_list = ["สื่อ", "สื่อออนไลน์", "สื่อสังคม", "สื่อสังคมออนไลน์",
+               "ออนไลน์", "ออนไลท์", "\n", "ด้วยการ", "จนทำให้", "การใช้",
+               "ต่อสังคม", "ในทาง", "การทำ", "อย่างไม่", "สังคม",
+               "ยังไม่", "ได้อย่าง", "เราควร", "ใช้ใน", "เราจึง", "เข้าได้",
+               "ทางที่", "ใช้ในการ", "ให้แก่", "เป็นช่องทาง", "ในการ", "ถูกหลอก"]
 
+specific_terms = ["ผิดกฎหมาย", "โฆษณา"]
 
+ignore_single_char = ["สิ", "สี่", "สัญญา", "ผิดก", "หริ", "รู", "ภูมิ",
+                      "เจ", "คา", "เป้", "เสีย", "หาย", "ผิด", "ที",
+                      "สี" , "ริ" , "ข่อ" , "ออนไลน์", "โท"]
+
+def preprocess_text(text):
+    return "".join(text.split())
+
+def is_thai_word(word):
+    return bool(re.fullmatch(r'[\u0E00-\u0E7F]+', word))
+
+def check_thai_text_integrity(text, ignore_single_char=None):
+    if ignore_single_char is None:
+        ignore_single_char = []
+    text_clean = preprocess_text(text)
+    words = word_tokenize(text_clean, engine='newmm')
+    thai_words_only = [w for w in words if is_thai_word(w)]
+    single_char_words = []
+    for i, w in enumerate(thai_words_only):
+        if len(w) == 1:
+            preceding = thai_words_only[i-1] if i > 0 else None
+            if preceding in ignore_single_char:
+                continue
+            single_char_words.append({"word": w, "preceding": preceding})
+    special_violations = []
+    return single_char_words, special_violations
+
+def semantic_similarity_lines(text, threshold=0.3):
+    lines = [line.strip() for line in text.split("\n") if line.strip()]
+    embeddings = model.encode(lines)
+    failed_lines = []
+    for i, emb in enumerate(embeddings):
+        sims = [util.cos_sim(emb, embeddings[j]).item() for j in range(len(embeddings)) if j != i]
+        max_sim = max(sims) if sims else 1.0
+        if max_sim < threshold:
+            failed_lines.append({
+                "line_index": i,
+                "line_text": lines[i],
+                "max_similarity": round(max_sim, 3)
+            })
+    return failed_lines
+
+def ngrams(tokens, n):
+    return ["".join(tokens[i:i+n]) for i in range(len(tokens)-n+1)]
+
+def find_repeated_ngrams(tokens, min_len=2, ignore_list=None):
+    if ignore_list is None:
+        ignore_list = []
+    repeated = {}
+    max_n = len(tokens)
+    for n in range(min_len, max_n+1):
+        ngs = ngrams(tokens, n)
+        counts = {}
+        for ng in ngs:
+            if any(ignore in ng for ignore in ignore_list):
+                continue
+            counts[ng] = counts.get(ng, 0) + 1
+        for ng, c in counts.items():
+            if c > 1:
+                repeated[ng] = c
+    longest_only = {}
+    for ng, count in repeated.items():
+        if not any((ng in other and len(other) > len(ng)) for other in repeated):
+            longest_only[ng] = count
+    repeated_words_count = sum(count - 1 for count in longest_only.values())
+    return {"repeated_ngrams": longest_only, "count": repeated_words_count}
+
+def find_specific_terms(text, specific_terms):
+    found = {}
+    total_count = 0
+    for term in specific_terms:
+        count = text.count(term)
+        if count > 1:
+            found[term] = count
+            total_count += count - 1
+    return {"specific_found": found, "count": total_count}
+
+def evaluate_student_answer(student_text, ignore_list=None, specific_terms=None, ignore_single_char=None, similarity_threshold=0.3):
+    if ignore_list is None:
+        ignore_list = []
+    if specific_terms is None:
+        specific_terms = []
+
+    single_char_words, special_violations = check_thai_text_integrity(student_text, ignore_single_char)
+    missing_content = {
+        "single_char_words": single_char_words,
+        "special_violations": special_violations
+    }
+
+    s_clean = student_text.replace("\n", "")
+    tokens = [t for t in word_tokenize(s_clean, keep_whitespace=False) if t.strip()]
+    repeated_ngrams_result = find_repeated_ngrams(tokens, min_len=2, ignore_list=ignore_list)
+    specific_found_result = find_specific_terms(s_clean, specific_terms)
+
+    duplicate_content = {
+        "repeated_ngrams": repeated_ngrams_result["repeated_ngrams"],
+        "specific_found": specific_found_result["specific_found"]
+    }
+
+    failed_similarity = semantic_similarity_lines(student_text, threshold=similarity_threshold)
+    semantic_issue = failed_similarity
+
+    score = 2
+    if single_char_words:
+        score -= 1
+    if special_violations:
+        score -= 1
+    score -= repeated_ngrams_result["count"]
+    score -= specific_found_result["count"]
+    if failed_similarity:
+        score -= 1
+    score = max(0, score)
+
+    return {
+        "เนื้อความขาด": missing_content,
+        "เนื้อความซ้ำ": duplicate_content,
+        "เนื้อความไม่สัมพันธ์กัน": semantic_issue,
+        "คะแนนรวม": score
+    }
 
 
 #---------S3 ความถูกต้องตามหลักการเขียนย่อความ-------------
@@ -513,8 +641,8 @@ TNER_URL = 'https://api.aiforthai.in.th/tner'
 
 
 # ---------- โหลด Dataset ----------
-examples_df = pd.read_csv(r'D:\project1\example_dialect.csv')
-pronouns_df = pd.read_csv(r'D:\project1\personal_pronoun_dataset1 (1).csv')
+examples_df = pd.read_csv(r'D:\project1\example_dialect (3).csv')
+pronouns_df = pd.read_csv(r'D:\project1\personal_pronoun (1) (1).csv')
 
 example_phrases = examples_df['local_word'].dropna().tolist()
 pronouns_1 = pronouns_df['personal pronoun 1'].dropna().tolist()
@@ -584,19 +712,161 @@ def validate_student_answer(student_answer):
     score = 1 if len(errors) == 0 else 0
     return score, errors, results
 
+#----------S5 การใช้คำ/ถ้อยคำสำนวน-------------
+
+# โหลดโมเดล mask-filling
+fill_mask = pipeline("fill-mask", model="xlm-roberta-base", tokenizer="xlm-roberta-base")
+
+# API Key
+API_KEY = "pHeDDSTgNpK4jLxoHXDQsdt3b9LC5yRL"
+
+def call_tner(text):
+    url = "https://api.aiforthai.in.th/tner"
+    headers = {"Apikey": API_KEY}
+    try:
+        response = requests.post(url, headers=headers, data={"text": text}, timeout=10)
+        if response.status_code == 200:
+            try:
+                return response.json()
+            except ValueError:
+                print("❌ Response ไม่ใช่ JSON:", response.text[:200])
+                return {}
+        else:
+            print(f"❌ API Error {response.status_code}: {response.text[:200]}")
+            return {}
+    except requests.exceptions.RequestException as e:
+        print("❌ Request error:", e)
+        return {}
+
+def find_words_by_pos(tner_result, pos_tags):
+    words = []
+    tokens = tner_result.get("words", [])
+    pos = tner_result.get("POS", [])
+    for idx, (w, p) in enumerate(zip(tokens, pos)):
+        if p in pos_tags:
+            words.append((idx, w))
+    return words
+
+def check_word_with_fill_mask(sentence, target_word):
+    masked_sentence = sentence.replace(target_word, fill_mask.tokenizer.mask_token, 1)
+    preds = fill_mask(masked_sentence)
+    predicted_tokens = [p["token_str"].strip() for p in preds]
+    return True, predicted_tokens
+
+def normalize_word(w):
+    return w.replace("\n", "").replace("\r", "").replace(" ", "").lower()
+
+# โหลด dataset
+file_path = r"D:\project1\speak_words(in) (1).csv"
+spoken_words_dataset = pd.read_csv(file_path)["word"].dropna().astype(str).str.strip()
+spoken_words_dataset = [w for w in spoken_words_dataset if w]  # ลบ empty string
+
+notinlan_dataset = pd.read_csv(r"D:\project1\notinlan_words.csv")["notinlan"].dropna().astype(str).str.strip()
+notinlan_dataset = [w for w in notinlan_dataset if w]
+
+local_words_context = pd.read_csv(r"D:\project1\sample_local_dialect  (1)(in).csv")["local_word"].dropna().astype(str).str.strip()
+local_words_context = [w for w in local_words_context if w]
+
+spoken_words_set = set(normalize_word(w) for w in spoken_words_dataset)
+notinlan_set = set(normalize_word(w) for w in notinlan_dataset)
+local_dialect_set = set(normalize_word(w) for w in local_words_context)
+
+# keyword_dict
+keyword_dict = {
+      "conjunctions": ["จน", "แม้มี", "แม้ว่า", "ถ้าใช้", "จึงมี", "และเรา", "ดังนั้น", "รับผิดชอบ", "ระวัง", "หากใชสือ", "ทั้งนี้",
+                       "หากใช้", "แต่ปัจจุบัน", "อย่างไรก็ตาม", "อย่างไม่", "หรือ", "ถึงแม้", "ยังมี", "การ", "เพราะ", "เช่น การเตือน"],
+
+      "prepositions": ["ในการ", "ในทางที่ดี", "ให้กับ", "ด้วย", "ของสังคม", "ของข้อมูล", "ต่อสังคม", "ยัง", "อย่างรวดเร็ว",
+                       "ก็จะ", "เมื่อพบว่า", "แก่สังคม", "แก่ผู้อื่น", "ลักษณะดังกล่าว", "จากคนบางกลุ่ม", "กิจการของตน", "สื่อ",
+                       "ทั่วโลก", "ทางด้าน", "ต่อง"],
+
+      "classifiers": ["หลายครั้ง"]
+}
+
+def evaluate_student_text(student_text, keyword_dict,
+                          spoken_words_set,
+                          notinlan_set,
+                          local_dialect_set,
+                          full_score=1.0,
+                          deduct_per_word=0.5):
+    errors = {k: [] for k in (list(keyword_dict.keys()) + ["slang", "dialect", "invalid_word"])}
+    total_wrong = 0
+    penalty = 0.0
+
+    # 1) ตรวจ POS + fill-mask
+    tner_result = call_tner(student_text)
+    words_list = [w.strip() for w in re.split(r'\s+', student_text.strip()) if w.strip()]
+    pos_categories = {
+        "conjunctions": ["CNJ"],
+        "prepositions": ["P"],
+        "classifiers": ["CL"]
+    }
+
+    for key, pos_list in pos_categories.items():
+        words = find_words_by_pos(tner_result, pos_list)
+        for idx, word in words:
+            prev_word = words_list[idx-1] if 0 <= idx-1 < len(words_list) else ""
+            next_word = words_list[idx+1] if 0 <= idx+1 < len(words_list) else ""
+
+            is_valid, preds = check_word_with_fill_mask(student_text, word)
+
+            clean_word = normalize_word(word)
+            clean_prev = normalize_word(prev_word)
+            clean_next = normalize_word(next_word)
+
+            matched_keyword = None
+            for kw in keyword_dict.get(key, []):
+                if kw.startswith(clean_prev + clean_word + clean_next) or clean_word in kw:
+                    matched_keyword = kw
+                    break
+
+            is_wrong = False
+            if preds:
+                if not matched_keyword and (clean_word not in preds):
+                    is_wrong = True
+
+            if is_wrong:
+                total_wrong += 1
+
+            errors[key].append({
+                "word": clean_word,
+                "predicted": preds,
+                "prev_word": prev_word,
+                "next_word": next_word,
+                "matched_keyword": matched_keyword,
+                "is_wrong": is_wrong
+            })
+
+    # 2) ตรวจคำภาษาพูด / ไม่มีในภาษา / คำถิ่น
+    clean_text = normalize_word(student_text)
+
+    for w in [w for w in spoken_words_set if w in clean_text]:
+        errors["slang"].append({"word": w, "is_wrong": True})
+        penalty += deduct_per_word
+
+    for w in [w for w in notinlan_set if w in clean_text]:
+        errors["invalid_word"].append({"word": w, "is_wrong": True})
+        penalty += deduct_per_word
+
+    for w in [w for w in local_dialect_set if w in clean_text]:
+        errors["dialect"].append({"word": w, "is_wrong": True})
+        penalty += deduct_per_word
+
+    # 3) คำนวณคะแนน
+    score = full_score - 0.5 * total_wrong - penalty
+    score = max(min(score, full_score), 0.0)
+
+    return {
+        "errors": errors,
+        "score": round(score, 2)
+    }
+
 #----------S6 การใช้ประโยค------------
 # ---------------- Typhoon API ----------------
 client = openai.OpenAI(
     api_key="sk-3u6WAA0DwMjJoJ2xDDxFy2ecuZDKTjUF1mCOCXAJKSlR3Xqq",
     base_url="https://api.opentyphoon.ai/v1"
 )
-
-# ---------------- AI for Thai API ----------------
-#aiforthai_url = "https://api.aiforthai.in.th/qaiapp"
-#aiforthai_headers = {
-#    'Content-Type': "application/json",
-#    'apikey': "pHeDDSTgNpK4jLxoHXDQsdt3b9LC5yRL",
-#}
 
 # ---------------- ฟังก์ชัน Typhoon ----------------
 def ask_typhoon(question, document):
@@ -611,9 +881,114 @@ def ask_typhoon(question, document):
     )
     return response.choices[0].message.content.strip()
 
-# ---------------- ฟังก์ชัน AI for Thai ----------------
+nlp = spacy_thai.load()
 
+# ---------------- ฟังก์ชัน Extract SVO ----------------
+def extract_svo_spacythai(sentence, subject_keywords=None, object_keywords=None):
+    if subject_keywords is None:
+        subject_keywords = []
+    if object_keywords is None:
+        object_keywords = []
 
+    doc = nlp(sentence)
+    subject_list, verb_list, object_list = [], [], []
+
+    for token in doc:
+        if token.dep_ in ["nsubj", "nsubjpass", "FIXN", "CCONJ", "SCONJ"]:
+            subject_list.append(token.text)
+        elif token.dep_ == "ROOT" or token.pos_ == "VERB":
+            verb_list.append(token.text)
+        elif token.dep_ in ["obj", "dobj", "iobj"]:
+            object_list.append(token.text)
+
+    # ---------------- เช็ค special case ----------------
+    first_token = doc[0] if len(doc) > 0 else None
+    subject_text = ", ".join(subject_list) if subject_list else "(ไม่พบ)"
+    if subject_text == "(ไม่พบ)":
+        if (first_token and first_token.pos_ in ["VERB", "SCONJ", "AUX"]) or any(kw in sentence for kw in subject_keywords):
+            subject_text = "(ไม่พบแต่ไม่ถือว่าผิด)"
+
+    object_text = ", ".join(object_list) if object_list else "(ไม่พบ)"
+    if object_text == "(ไม่พบ)":
+        if any(kw in sentence for kw in object_keywords):
+            object_text = "(ไม่พบแต่ไม่ถือว่าผิด)"
+
+    # กรณีพิเศษ: ถ้ามี verb แต่กรรมไม่พบ → ถือว่าอนุโลม
+    if subject_text == "(ไม่พบแต่ไม่ถือว่าผิด)" and verb_list and object_text == "(ไม่พบ)":
+        object_text = "(ไม่พบแต่ไม่ถือว่าผิด)"
+
+    return {
+        "sentence_text": sentence,
+        "subject": subject_text,
+        "verb": ", ".join(verb_list) if verb_list else "(ไม่พบ)",
+        "object": object_text
+    }
+
+# ---------------- ฟังก์ชันถาม Typhoon Q2 ----------------
+def ask_typhoon_q2_retry(system_prompt, question, document, wait_sec=3, max_attempts=5):
+    attempt = 0
+    while attempt < max_attempts:
+        attempt += 1
+        try:
+            response = client.chat.completions.create(
+                model="typhoon-v2.1-12b-instruct",
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": f"{question}\n{document}"}
+                ],
+                temperature=0,
+                max_tokens=1000
+            )
+            ans = response.choices[0].message.content.strip()
+            if ans:
+                return ans
+            else:
+                print(f"⚠️ ไม่มีผลลัพธ์จาก Typhoon Q2 (retry {attempt})")
+        except Exception as e:
+            print(f"⚠️ เกิดข้อผิดพลาด Q2: {e} (retry {attempt})")
+        time.sleep(wait_sec)
+    return "(ไม่มีคำตอบจาก Typhoon Q2)"
+
+# ---------------- ฟังก์ชันหลัก S6 ----------------
+def evaluate_sentence_usage(student_text):
+    """
+    ตรวจการใช้ประโยค (S6)
+    - Q1: ตรวจ SVO ด้วย spaCy-Thai
+    - Q2: ตรวจว่ามีประโยคไม่สื่อความหมาย (Typhoon)
+    """
+    sentences = sent_tokenize(student_text)
+    subject_keywords = ["สื่อสังคม", "สื่อออนไลน์", "สื่อสังคมออนไลน์",
+                        "สื่อ", "การ", "ตลอดจน", "ไม่ว่าจะเป็น", "ในชีวิตประจำวัน", "ทุกวัย",
+                        "และ", "หรือ", "อีกทั้งยัง", "อย่างไรก็ตาม", "แต่"]
+
+    object_keywords = ["ข้อมูลข่าวสาร", "ข้อมูล", "ข่าวสาร", "แก่สังคม", "จำนวนมาก",
+                    "สื่อสังคม", "สื่อออนไลน์", "สื่อสังคมออนไลน์", "ทุกวัย"]
+
+    svo_result = [extract_svo_spacythai(sent, subject_keywords, object_keywords) for sent in sentences]
+
+    q2 = "จากประโยคที่ให้หาประโยคที่ไม่มีความหมาย ถ้าไม่มีตอบว่า ไม่มีประโยคที่ไม่สื่อความหมาย"
+    system_q2 = "คุณคือผู้เชี่ยวชาญด้านภาษาไทย ห้ามคิดคำเอง"
+    ans2 = ask_typhoon_q2_retry(system_q2, q2, student_text)
+
+    score = 1.0  # เต็ม 1 คะแนน (ตาม rubric)
+
+    # Q1: หัก 0.5 ต่อ S/V/O ที่ไม่พบ
+    for item in svo_result:
+        for key in ['subject', 'verb', 'object']:
+            if "(ไม่พบ)" in item[key]:
+                score -= 0.5
+
+    # Q2: ถ้ามีประโยคไม่สื่อความหมาย → หัก 0.5
+    if not ans2.strip().startswith("ไม่มี"):
+        score -= 0.5
+
+    score = max(score, 0)
+
+    return {
+        "svo_analysis": svo_result,
+        "q2_result": ans2,
+        "score": round(score, 2)
+    }
 
 #------------------S7 คำบอกข้อคิดเห็น --------------------
 def evaluate_agreement_with_reference(answer: str, reference_text: str, threshold: float = 0.6) -> dict:
@@ -642,11 +1017,252 @@ def evaluate_agreement_with_reference(answer: str, reference_text: str, threshol
     return {
         "cosine_similarity": round(cosine_score, 3),
         "found_word": found if found else "ไม่พบ",
-        "score": 1 if found else 0.5,
+        "score": 1 if found else 0,
         "message": "ตรวจผ่าน"
     }
 
+#------------------S8 เหตุผลสนับสนุนและคำบอกข้อคิดเห็น --------------------
+
+def load_local_words_s8(file_path):
+    """โหลดคำท้องถิ่น (local_word) สำหรับ S8"""
+    df = pd.read_csv(file_path) if file_path.endswith(".csv") else pd.read_excel(file_path)
+    if "local_word" not in df.columns:
+        raise ValueError("ไม่พบคอลัมน์ 'local_word' ในไฟล์")
+    return [str(x).strip() for x in df["local_word"].dropna().tolist()]
+
+local_words_s8 = load_local_words_s8(r"D:\project1\example_dialect (3)(in) (1) (1).csv")
+
+def normalize_text(words):
+    text = str(words).lower()
+    text = re.sub(r'\s+', ' ', text)
+    return text.strip()
+
+def check_has_example(student_answer, local_words):
+    student_text = normalize_text(student_answer)
+    for w in local_words:
+        w_norm = normalize_text(w)
+        if w_norm in student_text:
+            return True, w_norm
+    return False, None
+
+def detect_opinion(student_answer):
+    """ตรวจคำบอกข้อคิดเห็น: 'ไม่เห็นด้วย' ก่อน 'เห็นด้วย'"""
+    text = normalize_text(student_answer)
+    if "ไม่เห็นด้วย" in text:
+        return "ไม่เห็นด้วย", 1
+    elif "เห็นด้วย" in text:
+        return "เห็นด้วย", 1
+    else:
+        return "ไม่มีคำบอกข้อคิดเห็น", 0
+
+def evaluate_student_answer8(student_answer, articles, main_ideas, local_words):
+    # แปลงเป็น str เผื่อ NaN หรือ float
+    student_answer = str(student_answer)
+
+    # ตรวจคำบอกข้อคิดเห็น
+    opinion, score_opinion = detect_opinion(student_answer)
+
+    # -------------------------
+    # embedding SBERT
+    # -------------------------
+    article_embeddings = model.encode(articles, convert_to_tensor=True)
+    student_embedding = model.encode(student_answer, convert_to_tensor=True)
+    main_idea_embeddings = model.encode(main_ideas, convert_to_tensor=True)
+
+    cosine_scores_articles = util.cos_sim(student_embedding, article_embeddings)
+    cosine_scores_main_ideas = util.cos_sim(student_embedding, main_idea_embeddings)
+
+    # -------------------------
+    # ตรวจคัดลอกบทความ
+    # -------------------------
+    similarity_threshold_article = 0.87
+    copied_article = any(score.item() >= similarity_threshold_article for score in cosine_scores_articles[0])
+
+    # -------------------------
+    # ตรวจใจความสำคัญ
+    # -------------------------
+    similarity_threshold_main_idea = 0.55
+    covered_main_idea_flags = [score.item() >= similarity_threshold_main_idea for score in cosine_scores_main_ideas[0]]
+    has_main_idea = any(covered_main_idea_flags)
+
+    # -------------------------
+    # ตรวจการยกตัวอย่างจาก local_word
+    # -------------------------
+    has_example, found_example_word = check_has_example(student_answer, local_words)
+
+    # -------------------------
+    # ใช้ SSense ตรวจ sentiment
+    # -------------------------
+    url_ssense = "https://api.aiforthai.in.th/ssense"
+    params = {"text": student_answer}
+    headers_ssense = {"Apikey": "zyHC3BNtLiesIuTj2UMlQd8DhrVXBxzM"}
+    try:
+        response_sentiment = requests.get(url_ssense, headers=headers_ssense, params=params, timeout=10)
+        sentiment_result = response_sentiment.json()
+    except:
+        sentiment_result = {"polarity-pos": False, "polarity-neg": True, "score": 50}
+
+    # -------------------------
+    # นับจำนวนบรรทัด
+    # -------------------------
+    line_count = student_answer.count("\n") + 1
+
+    # -------------------------
+    # ตรวจ keyword ให้คะแนน
+    # -------------------------
+    keyword_words_2 = ["เพราะ"]
+    has_keyword_2 = any(k in student_answer for k in keyword_words_2)
+
+    # ✅ ดึงคำหลัง "เพราะ"
+    after_keyword_2 = "0"
+    match = re.search(r"เพราะ\s*(.*)", student_answer)
+    if match:
+        text_after = match.group(1).strip()
+        words = text_after.split()
+        after_keyword_2 = " ".join(words[:10]) if words else "0"
+
+    keyword_words_0 = ["เป็นสื่อหรือช่องทางที่แพร่กระจายข้อมูลข่าวสารในรูปแบบต่างๆ", "ตกเป็นเหยื่อล่อ"]
+    has_keyword_0 = any(k in student_answer for k in keyword_words_0)
+
+    keyword_words_2_donthave = ["จำเป็น", "สิ่งที่ดี", "ข้อดี", "ป้องกัน"]
+    has_keyword_2_donthave = any(k in student_answer for k in keyword_words_2_donthave)
+
+    keyword_words_2_donthave_de = ["โกง", "ฟ้อง", "ไม่น่าเชื่อถือ", "ป้องกัน", "เครื่องมือ",
+                                  "โดนชักจูง", "ถูกกระทำ", "เป็นภัย", "มีความผิด",
+                                  "ทางที่เหมาะสม","หลอกเอาเงิน", "คนที่ทำไม่ดี",
+                                  "ของปลอม", "ไม่มีความรับผิดชอบ", "การเตือนเรื่องภัย"]
+    has_keyword_2_donthave_de = any(k in student_answer for k in keyword_words_2_donthave_de)
+
+    keyword_words_4 = ["เจตนาแอบแฝง", "เจตนา", "แอบแฝง", "มิจฉาชีพ", "ผ่อนคลาย",
+                      "ผิดกฎหมาย",  "พนัน", "หลอก", "จำคุก", "โฆษณาชวนเชื่อ",
+                      "ถูกหมายเรียก", "ติดโรค", "เจาะข้อมูล"]
+    has_keyword_4 = any(k in student_answer for k in keyword_words_4)
+
+    keyword_words_6 = ["การใช้สื่อสังคมออนไลน์ในทางที่ผิด", "โดนมิจฉาชีพหลอก", "ตกเป็นเหยื่อของสังคมออนไลน์",
+                       "การพนันหรือขายของผิดกฏหมาย", "การตลาดทั้งในธุรกิจ สังคม และการเมือง",
+                       "สินค้าพื้นเมือง", "การโฆษณาสินค้า", "ขัดต่อศีลธรรมอันดีของสังคม",
+                       "การเตือนภัยให้แก่คนในสังคม" , "เขียนวิจารณ์", "รู้เท่าทันสื่อออนไลน์",
+                       "กลลวงมิจฉาชีพ", "วิจารณ์ในทางที่เสียหาย", "รับชมข่าวสาร",
+                       "ประกอบอาชีพ", "การส่งข้อความ"]
+    has_keyword_6 = any(k in student_answer for k in keyword_words_6)
+
+    keyword_words_8 = ["ไลฟ์สด" , "ดูหนัง", "การศึกษา", "เปิดเพลงฟัง", "แพลตฟอร์มออนไลน์",
+                      "ไลฟ์", "เพลง", "โรงงาน", "ท่องเที่ยว", "การสั่งของจากสื่อ", "โอนเงิน", "พัฒนาตนเอง"]
+    has_keyword_8 = any(k in student_answer for k in keyword_words_8)
+
+    # -------------------------
+    # ให้คะแนนตามเงื่อนไข
+    # -------------------------
+    polarity_pos = sentiment_result.get("polarity-pos", False)
+    polarity_neg = sentiment_result.get("polarity-neg", True)
+
+    if sentiment_result.get("polarity", "") == "positive" or (polarity_pos and not polarity_neg):
+        sentiment = "pos"
+    else:
+        sentiment = "neg"
+
+    score_total = 0
+    if (
+        (opinion == "ไม่มีคำบอกข้อคิดเห็น" and has_keyword_2 and after_keyword_2 == "0" and not has_main_idea)
+        or (opinion == "ไม่มีคำบอกข้อคิดเห็น" and not has_keyword_2 and after_keyword_2 == "0"  and has_main_idea)
+        or (opinion == "ไม่มีคำบอกข้อคิดเห็น" and has_keyword_2 and after_keyword_2 == "0" and not has_main_idea and not has_example)
+        or (opinion in ["เห็นด้วย", "ไม่เห็นด้วย"]  and not has_main_idea and not has_keyword_4 and not has_example and  found_example_word is None and not has_keyword_8 and not has_keyword_6 and not has_keyword_2_donthave_de and not has_keyword_2_donthave)
+        or (opinion in ["เห็นด้วย", "ไม่เห็นด้วย"] and after_keyword_2 == "0" and not has_keyword_4 and not has_example and  found_example_word is None and not has_keyword_8 and not has_keyword_6 and not has_keyword_2_donthave_de and not has_keyword_2_donthave)
+        or (has_keyword_0)
+    ):
+        score_total = 0
+
+    elif ((opinion == "ไม่เห็นด้วย" and has_keyword_2_donthave) or (opinion == "เห็นด้วย" and has_keyword_2_donthave_de)) and has_main_idea and sentiment == "neg" and not copied_article:
+        score_total = 2
+
+    elif (opinion in ["เห็นด้วย", "ไม่เห็นด้วย"] and has_example and not has_keyword_6 and has_keyword_2 and has_keyword_8):
+        score_total = 8
+
+    elif (opinion in ["เห็นด้วย", "ไม่เห็นด้วย"] and (copied_article or has_example) and has_main_idea and not has_keyword_8 and has_keyword_6):
+        score_total = 6
+
+    elif (opinion in ["เห็นด้วย", "ไม่เห็นด้วย"] and (not found_example_word or not has_example or has_keyword_4)):
+        score_total = 4
+
+    elif ((opinion == "ไม่มีคำบอกข้อคิดเห็น" and not copied_article and sentiment == "neg" and has_main_idea) or (opinion == "ไม่มีคำบอกข้อคิดเห็น" and not copied_article and sentiment == "neg" and has_main_idea and not has_keyword_2)):
+        score_total = 2
+
+    elif ((opinion in ["เห็นด้วย", "ไม่เห็นด้วย"] and not copied_article and not has_main_idea and not found_example_word and not has_example)):
+        score_total = 2
+
+    elif ((opinion == "ไม่มีคำบอกข้อคิดเห็น" and copied_article) or (opinion == "ไม่มีคำบอกข้อคิดเห็น" and not has_main_idea) or (opinion in ["เห็นด้วย", "ไม่เห็นด้วย"] and not has_main_idea)):
+        score_total = 0
+
+    return {
+        "opinion": opinion,
+        "score_opinion": score_opinion,
+        "has_example": has_example,
+        "found_example_word": found_example_word,
+        "sentiment": sentiment_result,
+        "copied_article": copied_article,
+        "has_main_idea": has_main_idea,
+        "has_keyword_2": has_keyword_2,
+        "after_keyword_2": after_keyword_2,
+        "has_keyword_2_donthave": has_keyword_2_donthave,
+        "has_keyword_2_donthave_de": has_keyword_2_donthave_de,
+        "has_keyword_4": has_keyword_4,
+        "has_keyword_6": has_keyword_6,
+        "has_keyword_8": has_keyword_8,
+        "line_count": line_count,
+        "score_total": score_total
+    }
+
+
 #------------------S9 การเรียงลำดับ --------------------
+def evaluate_ordering_and_coherence(student_text,
+                                    ignore_list=None,
+                                    specific_terms=None,
+                                    ignore_single_char=None,
+                                    similarity_threshold=0.3):
+    if ignore_list is None:
+        ignore_list = []
+    if specific_terms is None:
+        specific_terms = []
+
+    # ตรวจคำเดี่ยว
+    single_char_words, special_violations = check_thai_text_integrity(student_text, ignore_single_char)
+    missing_content = {
+        "single_char_words": single_char_words,
+        "special_violations": special_violations
+    }
+
+    # ตรวจคำซ้ำ
+    s_clean = student_text.replace("\n", "")
+    tokens = [t for t in word_tokenize(s_clean, keep_whitespace=False) if t.strip()]
+    repeated_ngrams_result = find_repeated_ngrams(tokens, min_len=2, ignore_list=ignore_list)
+    specific_found_result = find_specific_terms(s_clean, specific_terms)
+
+    duplicate_content = {
+        "repeated_ngrams": repeated_ngrams_result["repeated_ngrams"],
+        "specific_found": specific_found_result["specific_found"]
+    }
+
+    # ตรวจความสัมพันธ์
+    failed_similarity = semantic_similarity_lines(student_text, threshold=similarity_threshold)
+
+    # คำนวณคะแนน
+    score = 3
+    if single_char_words:
+        score -= 1
+    if special_violations:
+        score -= 1
+    score -= repeated_ngrams_result["count"]
+    score -= specific_found_result["count"]
+    if failed_similarity:
+        score -= 1
+    score = max(0, score)
+
+    return {
+        "เนื้อความขาด": missing_content,
+        "เนื้อความซ้ำ": duplicate_content,
+        "เนื้อความไม่สัมพันธ์กัน": failed_similarity,
+        "คะแนนรวม": score
+    }
 
 
 #------------------S10 ความถูกต้องตามหลักการเขียนแสดงความคิดเห็น --------------------
@@ -732,6 +1348,367 @@ def evaluate_comment_validity(text):
         "details": mistakes if mistakes else ["ไม่มีข้อผิดพลาด"]
     }
 
+#------------------S11 การสะกดคำ (ข้อ 2) --------------------
+with open(r'D:\project1\thai_loanwords_new_update(1) (3).json', 'r', encoding='utf-8') as f:
+     loanwords_data = json.load(f)
+     loanwords_whitelist = set(item['thai_word'] for item in loanwords_data)
+
+with open(r'D:\project1\update_common_misspellings (1) (1).json', 'r', encoding='utf-8') as f:
+    raw_data = f.read()
+
+# แทนที่ NaN ด้วย null
+raw_data = raw_data.replace('NaN', 'null')
+data = json.loads(raw_data)
+# สร้าง dict
+COMMON_MISSPELLINGS = {item['wrong']: item.get('right') for item in data}
+
+
+with open(r"D:\project1\splitable_phrases (1).json", "r", encoding="utf-8") as f:
+    splitable_phrases = set(json.load(f))
+
+API_KEY = '33586c7cf5bfa0029887a9981bf94963'
+API_URL = 'https://api.longdo.com/spell-checker/proof'
+
+custom_words = {"ประเทศไทย", "สถาบันการศึกษา", "นานาประการ"}
+strict_not_split_words = {'มากมาย', 'ประเทศไทย', 'ออนไลน์', 'ความคิดเห็น', 'ความน่าเชื่อถือ'}
+thai_dict = set(w for w in set(thai_words()).union(custom_words) if (' ' not in w) and w.strip())
+
+allowed_punctuations = ['.', ',', '-', '(', ')', '!', '?', '%', '“', '”', '‘', '’', '"', "'", '…', 'ฯ']
+allow_list = {'ปี', 'อื่น', 'เล็ก', 'ใหญ่', 'มาก', 'หลาย', 'ช้า', 'เร็ว', 'ชัด', 'ดี', 'ผิด' ,'เสีย', 'หาย','สวย','มั่ว','ง่าย'}
+forbid_list = {'นา', 'บางคน', 'บางอย่าง', 'บางสิ่ง', 'บางกรณี'}
+splitable_pairs = {("ไป", "มา"),("ได้","ส่วน"),("ดี","แต่")}
+allowed_phrases = ["ฯลฯ"]
+
+# ---------------------------
+# Helper Functions
+# ---------------------------
+
+def is_english_or_number(word: str) -> bool:
+    return bool(re.fullmatch(r"[A-Za-z0-9().,\-_/]+", word.strip()))
+
+def longdo_spellcheck_batch(words):
+    results = {}
+    headers = {"Content-Type": "application/json"}
+    for word in words:
+        try:
+            payload = {"text": word, "api": API_KEY}
+            response = requests.post(API_URL, headers=headers, data=json.dumps(payload))
+            if response.status_code == 200:
+                data = response.json()
+                suggestions = []
+                if "words" in data and data["words"]:
+                    for w in data["words"]:
+                        if "candidates" in w:
+                            suggestions.extend(c["text"] for c in w["candidates"])
+                results[word] = suggestions
+            else:
+                results[word] = []
+        except:
+            results[word] = []
+    return results
+
+def pythainlp_spellcheck(tokens, pos_tags, dict_words, ignore_words):
+    mistakes = []
+    for i, token in enumerate(tokens):
+        if not token or is_english_or_number(token):
+            continue
+        if token in ignore_words:
+            continue
+        if token in dict_words:
+            continue
+        suggestions = spell(token)
+        if not suggestions:
+            mistakes.append({'word': token, 'pos': pos_tags[i][1] if i < len(pos_tags) else None,
+                             'index': i, 'suggestions': suggestions})
+    return mistakes
+
+def check_common_misspellings_before_tokenize(text, misspelling_dict):
+    errors = []
+    for wrong, right in misspelling_dict.items():
+        if wrong in text:
+            for m in re.finditer(re.escape(wrong), text):
+                errors.append({"word": wrong, "index": m.start(), "right": right})
+    return errors
+
+def check_loanword_before_tokenize(words, whitelist):
+    mistakes = []
+    for i, w in enumerate(words):
+        if is_english_or_number(w):
+            continue
+        matches = difflib.get_close_matches(w, list(whitelist), n=1, cutoff=0.7)
+        if matches and w not in whitelist:
+            mistakes.append({'word': w, 'index': i, 'suggestions': [matches[0]]})
+    return mistakes
+
+def find_unallowed_punctuations(text):
+    for phrase in allowed_phrases:
+        text = text.replace(phrase, "")
+    pattern = f"[^{''.join(re.escape(p) for p in allowed_punctuations)}a-zA-Z0-9ก-๙\\s]"
+    return list(set(re.findall(pattern, text)))
+
+def analyze_maiyamok(tokens, pos_tags):
+    results = []
+    found_invalid = False
+    VALID_POS = {'NCMN', 'NNP', 'VACT', 'VNIR', 'CLFV', 'ADVN', 'ADVI', 'ADVP', 'PRP', 'ADV'}
+    for i, token in enumerate(tokens):
+        if token == 'ๆ':
+            prev_idx = i - 1
+            prev_word = tokens[prev_idx] if prev_idx >= 0 else None
+            prev_tag = pos_tags[prev_idx][1] if prev_idx >= 0 else None
+            if prev_word is None or prev_word == 'ๆ':
+                verdict = "❌ ไม้ยมกไม่ควรขึ้นต้นประโยค/คำ"
+            elif prev_word in forbid_list:
+                verdict = '❌ ไม่ควรใช้ไม้ยมกกับคำนี้'
+            elif (prev_tag in VALID_POS) or (prev_word in allow_list):
+                verdict = '✅ ถูกต้อง (ใช้ไม้ยมกซ้ำคำได้)'
+            else:
+                verdict = '❌ ไม่ควรใช้ไม้ยมกนอกจากกับคำนาม/กริยา/วิเศษณ์'
+            context = tokens[max(0, i-2):min(len(tokens), i+3)]
+            results.append({'คำก่อนไม้ยมก': prev_word or '',
+                            'POS คำก่อน': prev_tag or '',
+                            'บริบท': ' '.join(context),
+                            'สถานะ': verdict})
+            if verdict.startswith('❌'): found_invalid = True
+    return results, found_invalid
+
+def detect_split_errors(tokens, custom_words=None, splitable_phrases=None):
+    check_dict = set(thai_words()).union(custom_words or [])
+    check_dict = {w for w in check_dict if (' ' not in w) and w.strip()}
+    splitable_phrases = splitable_phrases or set()
+    errors = []
+    for i in range(len(tokens) - 1):
+        combined = tokens[i] + tokens[i + 1]
+        if (combined in check_dict) and ((tokens[i], tokens[i+1]) not in splitable_pairs):
+            errors.append({"split_pair": (tokens[i], tokens[i+1]), "suggested": combined})
+    return errors
+
+# ---------------------------
+# ฟังก์ชันหลัก S11
+# ---------------------------
+def evaluate_text(text):
+    if not text or not text.strip():
+        return {'score': 0.0, 'reasons': ["ไม่มีคำตอบ"], 'total_error_count': 0}
+
+    corrected_text = normalize(text.replace("\n", ""))
+
+    json_misspells = check_common_misspellings_before_tokenize(corrected_text, COMMON_MISSPELLINGS)
+    tokens = [t for t in word_tokenize(corrected_text, engine='newmm', keep_whitespace=False)
+              if not is_english_or_number(t)]
+    pos_tags = pos_tag(tokens, corpus='orchid')
+
+    pythai_errors = pythainlp_spellcheck(tokens, pos_tags, dict_words=thai_dict, ignore_words=custom_words)
+
+    raw_words = re.findall(r'[ก-๙]+', corrected_text)
+    loanword_errors = check_loanword_before_tokenize(raw_words, loanwords_whitelist) \
+                    + check_loanword_before_tokenize(tokens, loanwords_whitelist)
+
+    longdo_results = longdo_spellcheck_batch([e['word'] for e in pythai_errors])
+    longdo_errors = [{**e, 'suggestions': [str(s) for s in longdo_results.get(e['word'], []) if s]}
+                     for e in pythai_errors]
+
+    all_spelling_errors = longdo_errors + \
+        [{"word": e["word"], "pos": None, "index": e["index"], "suggestions": [str(e["right"])]} for e in json_misspells] + \
+        [{"word": e["word"], "pos": None, "index": e["index"],
+          "suggestions": [str(s) for s in e.get("suggestions", []) if s]} for e in loanword_errors]
+
+    punct_errors = find_unallowed_punctuations(corrected_text)
+    maiyamok_results, _ = analyze_maiyamok(tokens, pos_tags)
+    split_errors = detect_split_errors(tokens, custom_words=custom_words)
+
+    total_errors = len({e["word"] for e in all_spelling_errors}) \
+                 + len(split_errors) \
+                 + len(punct_errors) \
+                 + sum(1 for r in maiyamok_results if r['สถานะ'].startswith('❌'))
+
+    if total_errors == 0: score = 2.0
+    elif total_errors == 1: score = 1.5
+    elif total_errors == 2: score = 1.0
+    elif total_errors == 3: score = 0.5
+    else: score = 0.0
+
+    return {
+        'spelling_errors': all_spelling_errors,
+        'loanword_errors': loanword_errors,
+        'punctuation_errors': punct_errors,
+        'maiyamok_results': maiyamok_results,
+        'split_errors': split_errors,
+        'score': score,
+        'total_error_count': total_errors
+    }
+
+
+#------------------S12 การใช้คำ/ถ้อยคำสำนวน (ข้อ 2) --------------------
+
+# Dataset สำหรับ S12 (ข้อ 2)
+spoken_words_dataset_s12 = pd.read_csv(r"D:\project1\dataset_speak_word(in).csv")["word"].dropna().astype(str).str.strip()
+spoken_words_dataset_s12 = [w for w in spoken_words_dataset_s12 if w]  # ลบ empty string
+
+notinlan_dataset_s12 = pd.read_csv(r"D:\project1\dataset_notinlan_words(in).csv")["notinlan"].dropna().astype(str).str.strip()
+notinlan_dataset_s12 = [w for w in notinlan_dataset_s12 if w]
+
+local_words_context_s12 = pd.read_csv(r"D:\project1\S12_sample_local_dialect  (1)(in)(in).csv")["local_word"].dropna().astype(str).str.strip()
+local_words_context_s12 = [w for w in local_words_context_s12 if w]
+
+spoken_words_set_s12 = set(normalize_word(w) for w in spoken_words_dataset_s12)
+notinlan_set_s12 = set(normalize_word(w) for w in notinlan_dataset_s12)
+local_dialect_set_s12 = set(normalize_word(w) for w in local_words_context_s12)
+
+# keyword_dict สำหรับ S12 (ข้อ 2)
+keyword_dict_s12 = {
+      "conjunctions": ["จน", "แม้มี", "แม้ว่า", "ถ้าใช้", "จึงมี", "และเรา", "ดังนั้น", "รับผิดชอบ", "ระวัง", "วันต่อมา", "เช่น การเตือนภัย",
+                       "หากใช้", "แต่ปัจจุบัน", "อย่างไรก็ตาม", "อย่างไม่", "หรือ", "ถึงแม้", "ยังมี", "การ", "เพราะ",
+                       "ในทั้งนี้", "เพื่อเป็น", "เพื่อความ", "แม้แต่", "ตลอดจน", "ถ้าหาก", "เพราะฉะนั้น", "ส่วน", "บุคคล", "เข้าถึง",
+                       "ข้อมูลข่าวสาร", "ทำให้", "ไม่งั้น", "โทษแก่สังคม", "หลายคน", "แก้ปัญหา",
+                       "สะดวก", "สามารถ", "ระดม", "การสร้าง", "จะเป็น", "ไปเจอ", "จำเป็น", "ค้าขาย",
+                       "ตัวอย่าง", "หรือติ"],
+
+      "prepositions": ["ในการ", "ในทางที่ดี", "ให้กับ", "ด้วย", "ของสังคม", "ของข้อมูล", "ต่อสังคม", "ยัง", "อย่างรวดเร็ว",
+                       "ก็จะ", "เมื่อพบว่า", "แก่สังคม", "แก่ผู้อื่น", "ลักษณะดังกล่าว", "จากคนบางกลุ่ม", "กิจการของตน", "สื่อ",
+                       "ทั่วโลก", "ทางด้าน", "ต่อง", "รวมถึง", "เกี่ยวกับ", "พอ", "โรงงาน", "ฉะนั้น", "เป็นโทษ",
+                       "ช่วยเหลือ", "เดือดร้อน", "มีการ", "อีกด้วย", "ชวนเชื่อ", "ก่อนหลงเชื่อ", "ไม่ตรง",
+                       "แต่หลายคน", "ชีวิตประจำวัน", "สะดวก", "ข้อมูลข่าวสาร", "ติดต่อผ่าน", "สำหรับ",
+                       "เรื่องต่างๆ", "เรียกได้เลย", "เข้าถึง", "กันเป็นจำนวนมาก", "การขาย", "การสื่อสาร",
+                       "ทุกคน", "ส่วนใหญ่", "ตัวเอง", "ทางการ", "แทนการ"],
+
+      "classifiers": ["หลายครั้ง", "บางคน", "ทุกวัน", "เหล่านี้", "อย่างมาก", "สำคัญ", "ไม่ดี", "อาจจะ",
+                      "ไม่ว่าจะเป็น", "เสียใจมาก", "เข้าถึง", "ได้เลย"]
+}
+
+def evaluate_student_text_s12(student_text, keyword_dict_s12 ,
+                              spoken_words_set_s12,
+                              notinlan_set_s12,
+                              local_dialect_set_s12,
+                              full_score=2.0,
+                              deduct_per_word=0.5):
+    """
+    ตรวจคำ/ถ้อยคำสำนวน (S12 สำหรับข้อ 2)
+    """
+    errors = {k: [] for k in (list(keyword_dict.keys()) + ["slang", "dialect", "invalid_word"])}
+    total_wrong = 0
+    penalty = 0.0
+
+    # 1) ตรวจ POS + fill-mask
+    tner_result = call_tner(student_text)
+    words_list = [w.strip() for w in re.split(r'\s+', student_text.strip()) if w.strip()]
+    pos_categories = {
+        "conjunctions": ["CNJ"],
+        "prepositions": ["P"],
+        "classifiers": ["CL"]
+    }
+
+    for key, pos_list in pos_categories.items():
+        words = find_words_by_pos(tner_result, pos_list)
+        for idx, word in words:
+            prev_word = words_list[idx-1] if 0 <= idx-1 < len(words_list) else ""
+            next_word = words_list[idx+1] if 0 <= idx+1 < len(words_list) else ""
+
+            _, preds = check_word_with_fill_mask(student_text, word)
+
+            clean_word = normalize_word(word)
+            clean_prev = normalize_word(prev_word)
+            clean_next = normalize_word(next_word)
+
+            matched_keyword = None
+            for kw in keyword_dict.get(key, []):
+                if kw.startswith(clean_prev + clean_word + clean_next) or clean_word in kw:
+                    matched_keyword = kw
+                    break
+
+            is_wrong = False
+            if preds:
+                if not matched_keyword and (clean_word not in preds):
+                    is_wrong = True
+
+            if is_wrong:
+                total_wrong += 1
+
+            errors[key].append({
+                "word": clean_word,
+                "predicted": preds,
+                "prev_word": prev_word,
+                "next_word": next_word,
+                "matched_keyword": matched_keyword,
+                "is_wrong": is_wrong
+            })
+
+    # 2) ตรวจคำภาษาพูด / ไม่มีในภาษา / คำถิ่น
+    clean_text = normalize_word(student_text)
+
+    for w in [w for w in spoken_words_set if w in clean_text]:
+        errors["slang"].append({"word": w, "is_wrong": True})
+        penalty += deduct_per_word
+
+    for w in [w for w in notinlan_set if w in clean_text]:
+        errors["invalid_word"].append({"word": w, "is_wrong": True})
+        penalty += deduct_per_word
+
+    for w in [w for w in local_dialect_set if w in clean_text]:
+        errors["dialect"].append({"word": w, "is_wrong": True})
+        penalty += deduct_per_word
+
+    # 3) คำนวณคะแนน
+    score = full_score - 0.5 * total_wrong - penalty
+    score = max(min(score, full_score), 0.0)
+
+    return {
+        "errors": errors,
+        "score": round(score, 2)
+    }
+
+# ---------------- S13 การใช้ประโยค ----------------
+def evaluate_reasoning_usage(student_text,
+                             subject_keywords=None,
+                             object_keywords=None,
+                             full_score=2.0,
+                             deduct_per_word=0.5):
+    """
+    S13 - การใช้เหตุผลประกอบการแสดงความคิดเห็น
+    Q1: ตรวจ SVO
+    Q2: ตรวจว่ามีประโยคที่ไม่สื่อความหมาย
+    """
+    # กำหนดค่า default ถ้าไม่ได้ส่งเข้ามา
+    if subject_keywords is None:
+        subject_keywords = [
+            "สื่อสังคม", "สื่อออนไลน์", "สื่อสังคมออนไลน์", "สื่อ", "การ",
+            "ที่", "และ", "เห็นด้วย", "ไม่เห็นด้วย", "ต่าง ๆ", "ไม่",
+            "ทุกวัย", "ทุกเพศ", "เป็นต้น"
+        ]
+    if object_keywords is None:
+        object_keywords = [
+            "ข้อมูลข่าวสาร", "ข้อมูล", "ข่าวสาร",
+            "สื่อสังคม", "สื่อออนไลน์", "สื่อสังคมออนไลน์",
+            "เห็นด้วย", "ไม่เห็นด้วย", "มีกันหมด", "ทุกเพศทุกวัย"
+        ]
+
+    # ---------------- Q1 ----------------
+    sentences = sent_tokenize(student_text)
+    svo_result = [extract_svo_spacythai(sent, subject_keywords, object_keywords) for sent in sentences]
+
+    # ---------------- Q2 ----------------
+    q2 = "จากประโยคที่ให้หาประโยคที่ไม่มีความหมาย ถ้าไม่มีตอบว่า ไม่มีประโยคที่ไม่สื่อความหมาย"
+    system_q2 = "คุณคือผู้เชี่ยวชาญด้านภาษาไทย ห้ามคิดคำเอง"
+    ans2 = ask_typhoon_q2_retry(system_q2, q2, student_text)
+
+    # ---------------- คะแนน ----------------
+    score = full_score
+
+    for item in svo_result:
+        for key in ['subject', 'verb', 'object']:
+            if "(ไม่พบ)" in item[key]:
+                score -= deduct_per_word
+
+    if not ans2.strip().startswith("ไม่มี"):
+        score -= deduct_per_word
+
+    score = max(score, 0)
+
+    return {
+        "svo_analysis": svo_result,
+        "q2_result": ans2,
+        "score": round(score, 2)
+    }
+
+
 
 # ✅ -----------------------------
 # ฟังก์ชันหลัก เรียกจาก FastAPI
@@ -774,7 +1751,7 @@ def evaluate_single_answer(answer_text, essay_analysis):
     best_score = float(cosine_scores.max().item())
 
     mind_score = evaluate_mind_score(answer_text)
-    mind_total = int(mind_score.get("คะแนนรวมใจความ ", 0))
+    mind_total = int(mind_score.get("คะแนนรวมใจความ", 0))
 
     # ถ้าใจความเป็น 0 หรือ cosine ต่ำกว่า 0.6 → ตัดจบ
     if mind_total == 0 or best_score < 0.6:
@@ -787,16 +1764,23 @@ def evaluate_single_answer(answer_text, essay_analysis):
             "คะแนนรวม": 0,
             "message": "ใจความต่ำกว่ามาตรฐาน → ข้อที่ 1 = 0"
         }
-        mind_total = 0
-        # กำหนดค่าทุกส่วนของข้อที่ 1 เป็น 0 โดยไม่ตรวจต่อ
         ordering1_score, ordering1_details = 0, {}
         summary1_score, summary1_details = 0, {}
         spelling_score, spelling_res = 0, {"reasons": []}
+        score_s5, s5_result = 0, {}
         score_s6, s6_result = 0, {}
         total_score1 = 0
     else:
-        # 2) เรียงลำดับความคิด
-
+        # 2) เรียงลำดับความคิด (S2)
+        ordering1_result = evaluate_student_answer(
+            answer_text,
+            ignore_list=ignore_list,
+            specific_terms=specific_terms,
+            ignore_single_char=ignore_single_char,
+            similarity_threshold=0.3
+        )
+        ordering1_score = int(ordering1_result.get("คะแนนรวม", 0))
+        ordering1_details = convert_numpy_to_python(ordering1_result)
 
         # 3) ความถูกต้องตามหลักการย่อความ
         summary1_score, summary1_err, summary1_details = validate_student_answer(answer_text)
@@ -806,52 +1790,93 @@ def evaluate_single_answer(answer_text, essay_analysis):
         # 4) การสะกดคำ
         spelling_res = evaluate_text(answer_text)
         spelling_score = float(spelling_res.get("score", 0))
-        spelling_reason = str(spelling_res.get("reasons", ""))
 
-        # 5) การใช้ประโยค (S6)
+        # 5) การใช้ถ้อยคำ/สำนวน (S5)
+        s5_result = evaluate_student_text(
+            answer_text,
+            keyword_dict,
+            spoken_words_set,
+            notinlan_set,
+            local_dialect_set
+        )
+        score_s5 = float(s5_result.get("score", 0))
 
-    
+        # 6) การใช้ประโยค (S6)
+        s6_result = evaluate_sentence_usage(answer_text)
+        score_s6 = float(s6_result.get("score", 0))
+
+        total_score1 = mind_total + ordering1_score + summary1_score + spelling_score + score_s5 + score_s6
+
 
     # ---------------------------
     # ✅ ข้อที่ 2 : ตรวจจาก essay_analysis
     # ---------------------------
 
-    # 1) คำบอกข้อคิดเห็น (เห็นด้วย/ไม่เห็นด้วย)
+    # 1) คำบอกข้อคิดเห็น (S7)
     agreement_result = evaluate_agreement_with_reference(essay_analysis, reference_text)
-    agreement_score = agreement_result.get("score", 0)
+    agreement_score = int(agreement_result.get("score", 0))
 
-    # ถ้าไม่มีคำบอก + cosine สูง → หยุดตรวจข้อที่ 2
-    if agreement_score == 0 and "ไม่ตรวจ" in agreement_result.get("message",""):
-        total_score1 = mind_total + ordering1_score + summary1_score + spelling_score + score_s6
+    # 2) เหตุผลสนับสนุน (S8)
+    s8_result = evaluate_student_answer8(essay_analysis, reference_text, core_sentences, local_words_s8)
+    s8_score = int(s8_result.get("score_total", 0))
+
+    # 🔴 ถ้าไม่มีคำบอกข้อคิดเห็น (S7=0) และ S8=0 → ข้อที่ 2 = 0 ทั้งข้อ
+    if agreement_score == 0 and s8_score == 0:
         return convert_numpy_to_python({
             "ข้อที่ 1": {
                 "ใจความสำคัญ (4 คะแนน)": mind_score,
                 "เรียงลำดับ (2 คะแนน)": {"score": ordering1_score, "details": ordering1_details},
                 "ความถูกต้องย่อความ (1 คะแนน)": {"score": summary1_score, "details": summary1_details},
-                "การสะกดคำ (1 คะแนน)": {"score": spelling_score, "details": spelling_reason},
-                "การใช้ประโยค (1 คะแนน)": s6_result,
+                "การสะกดคำ (1 คะแนน)": {"score": spelling_score, "details": spelling_res},
+                "การใช้คำ/ถ้อยคำสำนวน (1 คะแนน)": {"score": score_s5,"details": s5_result},
+                "การใช้ประโยค (1 คะแนน)": {"score": score_s6,"details": s6_result},
                 "คะแนนรวมข้อที่ 1": total_score1
             },
             "ข้อที่ 2": {
-                "คำบอกข้อคิดเห็น": agreement_result,
-                "message": "ไม่มีคำบอกข้อคิดเห็นและ cosine สูง → ข้อที่ 2 = 0 (ไม่ตรวจต่อ)"
+                "คำบอกข้อคิดเห็น (S7)": agreement_result,
+                "เหตุผลสนับสนุน (S8)": s8_result,
+                "message": "ไม่มีคำบอกข้อคิดเห็น (S7=0) และ S8=0 → ข้อที่ 2 = 0 ทั้งข้อ"
             },
-            "คะแนนรวมทั้งหมด": total_score1  # ไม่มีคะแนนข้อที่ 2
+            "คะแนนรวมทั้งหมด": total_score1
         })
 
-    # 2) เรียงลำดับความคิด
 
+    # 3) เรียงลำดับความคิด
+    ordering2_result = evaluate_ordering_and_coherence(
+        essay_analysis,
+        ignore_list=ignore_list,
+        specific_terms=specific_terms,
+        ignore_single_char=ignore_single_char,
+        similarity_threshold=0.3
+    )
+    ordering2_score = int(ordering2_result.get("คะแนนรวม", 0))
+    ordering2_details = convert_numpy_to_python(ordering2_result)
 
-    # 3) ความถูกต้องตามหลักการแสดงความคิดเห็น
+    # 4) ความถูกต้องตามหลักการแสดงความคิดเห็น
     summary2_score, summary2_err, summary2_details = validate_student_answer(essay_analysis)
     summary2_score = int(summary2_score)
     summary2_details = convert_numpy_to_python(summary2_details)
 
-    # ---------------------------
-    # ✅ รวมคะแนนทั้งหมด
-    # ---------------------------
-    total_score1 = mind_total + summary1_score + spelling_score
-    total_score2 = agreement_score  + summary2_score
+    # 5) การสะกดคำ 
+    s11_result = evaluate_text(essay_analysis)
+    score_s11 = float(s11_result.get("score", 0))
+
+    # 6) การใช้คำ/ถ้อยคำสำนวน (S12)
+    s12_result = evaluate_student_text_s12(
+        essay_analysis,
+        keyword_dict_s12,
+        spoken_words_set_s12,
+        notinlan_set_s12,
+        local_dialect_set_s12
+    )
+    score_s12 = float(s12_result.get("score", 0))
+
+    # 7) การใช้ประโยค (S13)
+    s13_result = evaluate_reasoning_usage(answer_text)
+    score_s13 = float(s13_result.get("score", 0))
+
+    # ✅ รวมคะแนน
+    total_score2 = agreement_score + s8_score + ordering2_score + summary2_score  + score_s11 + score_s12 + score_s13
     total_all = total_score1 + total_score2
 
     # ---------------------------
@@ -859,28 +1884,24 @@ def evaluate_single_answer(answer_text, essay_analysis):
     # ---------------------------
     return convert_numpy_to_python({
         # -------- ข้อที่ 1 --------
-        "ข้อที่ 1 - ใจความสำคัญ": {
-            **mind_score,
-            "คะแนนรวม": mind_total
-        },
-        "ข้อที่ 1 - ความถูกต้องตามหลักการเขียนย่อความ": {
-            "score": summary1_score,
-            **summary1_details
-        },
-        "ข้อที่ 1 - การสะกดคำ": {
-            "score": spelling_score,
-            "reasons": spelling_res.get("reasons", [])
-        },
+        "ข้อที่ 1 - ใจความสำคัญ": {**mind_score, "คะแนนรวม": mind_total},
+        "ข้อที่ 1 - การเรียงลำดับและเชื่อมโยงความคิด": {"score": ordering1_score,"details": ordering1_details},
+        "ข้อที่ 1 - ความถูกต้องตามหลักการเขียนย่อความ": {"score": summary1_score, **summary1_details},
+        "ข้อที่ 1 - การสะกดคำ": {"score": spelling_score, "details": spelling_res},
+        "ข้อที่ 1 - การใช้คำ/ถ้อยคำสำนวน": {"score": score_s5, "details": s5_result},
+        "ข้อที่ 1 - การใช้ประโยค": {"score": score_s6, "details": s6_result},
 
         # -------- ข้อที่ 2 --------
         "ข้อที่ 2 - คำบอกข้อคิดเห็น": agreement_result,
-        "ข้อที่ 2 - ความถูกต้องตามหลักการแสดงความคิดเห็น": {
-            "score": summary2_score,
-            **summary2_details
-        },
+        "ข้อที่ 2 - เหตุผลสนับสนุน": s8_result,
+        "ข้อที่ 2 - การเรียงลำดับและเชื่อมโยงความคิด": {"score": ordering2_score,"details": ordering2_details},
+        "ข้อที่ 2 - ความถูกต้องตามหลักการแสดงความคิดเห็น": {"score": summary2_score, **summary2_details},
+        "ข้อที่ 2 - การสะกดคำ/การใช้ภาษา": s11_result,
+        "ข้อที่ 2 - การใช้คำ/ถ้อยคำสำนวน": {"score": score_s12,"details": s12_result},
+        "ข้อที่ 2 - การใช้ประโยค": {"score": score_s13,"details": s13_result},
+
+        # -------- รวมคะแนน --------
         "คะแนนรวมข้อที่ 1": total_score1,
         "คะแนนรวมข้อที่ 2": total_score2,
-
-        # -------- รวมทั้งหมด --------
-        "คะแนนรวมทั้งหมด (15 คะแนน)": total_all
+        "คะแนนรวมทั้งหมด (30 คะแนน)": total_all
     })
