@@ -7,20 +7,71 @@
   <link href="https://fonts.googleapis.com/css2?family=Sarabun&display=swap" rel="stylesheet">
   <style>
     body { font-family: 'Sarabun', Arial, sans-serif; margin: 0; display: flex; }
-    nav.sidebar { width: 220px; background: #333; color: #fff; min-height: 100vh; padding: 20px; }
+    nav.sidebar {
+      width: 220px;
+      background: #333;
+      color: #fff;
+      min-height: 100vh;
+      padding: 20px;
+    }
     nav.sidebar h2 { font-size: 20px; margin-bottom: 20px; }
-    nav.sidebar a { display: block; color: #fff; text-decoration: none; margin-bottom: 10px; padding: 10px; background: #444; border-radius: 5px; }
+    nav.sidebar a {
+      display: block;
+      color: #fff;
+      text-decoration: none;
+      margin-bottom: 10px;
+      padding: 10px;
+      background: #444;
+      border-radius: 5px;
+    }
     nav.sidebar a:hover { background: #555; }
+
     main.content { flex: 1; padding: 20px; }
+
     table { width: 100%; border-collapse: collapse; margin-top: 20px; }
     th, td { border: 1px solid #ccc; padding: 10px; text-align: left; }
     th { background-color: #f2f2f2; }
+
     /* ปุ่มลบ */
-    .btn-delete {background-color: #f44336;color: white;border: none;padding: 6px 12px;  /* ปรับให้สูง/กว้างเท่ากัน */border-radius: 5px;cursor: pointer;font-size: 14px;display: inline-block; /* ทำให้สามารถจัด layout ได้ */text-align: center;}
-    /* hover effect */
-    .btn-delete:hover {opacity: 0.8;}
-    /* ให้ cell ของปุ่มจัดกึ่งกลางแนวตั้งและแนวนอน */
-    td:last-child {text-align: center; /* กึ่งกลางแนวนอน */vertical-align: middle; /* กึ่งกลางแนวตั้ง */width: 100px; /* กำหนดความกว้างคงที่เพื่อให้ปุ่มไม่ลอย */}
+    .btn-delete {
+      background-color: #f44336;
+      color: white;
+      border: none;
+      padding: 6px 12px;
+      border-radius: 5px;
+      cursor: pointer;
+      font-size: 14px;
+      text-align: center;
+    }
+    .btn-delete:hover { opacity: 0.8; }
+
+    td:last-child {
+      text-align: center;
+      vertical-align: middle;
+      width: 100px;
+    }
+
+    /* Pagination */
+    .pagination {
+      text-align: center;
+      margin-top: 20px;
+    }
+    .pagination button {
+      margin: 3px;
+      padding: 6px 12px;
+      background: #eee;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    .pagination button.active {
+      background: #3b5bdb;
+      color: #fff;
+    }
+    .pagination button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
   </style>
 </head>
 <body>
@@ -30,7 +81,7 @@
     <a href="homepage_admin.html">HOME PAGE</a>
     <a href="manage_user.html">จัดการผู้ใช้งาน</a>
     <a href="create_answer.html">เพิ่มคำตอบนักเรียน</a>
-    <a href="show_answer.html">ตรวจสอบคำตอบนักเรียน</a>    
+    <a href="show_answer.html">ตรวจสอบคำตอบนักเรียน</a>
     <a href="view_feedback.html">ตรวจสอบความคิดเห็นของผู้ใช้งาน</a>
     <a href="settings.html">ตั้งค่าระบบ</a>
     <a href="login.html">ออกจากระบบ</a>
@@ -50,65 +101,102 @@
         </tr>
       </thead>
       <tbody>
-        <!-- ข้อมูล feedback จะถูกเติมด้วย JS -->
+        <tr><td colspan="5" style="text-align:center; color:#888;">กำลังโหลด...</td></tr>
       </tbody>
     </table>
+
+    <div class="pagination" id="pagination"></div>
   </main>
 
   <script>
+    const API_BASE = "http://127.0.0.1:8000";
+    let feedbackList = [];
+    let currentPage = 1;
+    const itemsPerPage = 50;
+
     async function loadFeedback() {
       try {
-        const response = await fetch('http://127.0.0.1:8000/api/contact-admin-all');
-        const data = await response.json();
-        console.log(data); // ตรวจสอบข้อมูล
-
-        const tbody = document.querySelector('#feedbackTable tbody');
-        tbody.innerHTML = '';
-
-  
-        data.forEach(item => {
-          const tr = document.createElement('tr');
-          const date = new Date(item.created_at).toLocaleDateString('th-TH', {
-            day:'2-digit', month:'long', year:'numeric'
-          });
-          tr.innerHTML = `
-            <td>${item.name}</td>
-            <td>${item.username}</td>
-            <td>${item.message}</td>
-            <td>${date}</td>
-            <td>
-              <button class="btn-delete" onclick="deleteFeedback(${item.contact_id}, this)">ลบ</button>
-            </td>
-
-          `;
-          tbody.appendChild(tr);
-        });
+        const response = await fetch(`${API_BASE}/api/contact-admin-all`);
+        if (!response.ok) throw new Error("โหลดข้อมูลล้มเหลว");
+        feedbackList = await response.json();
+        renderFeedback();
       } catch (err) {
-        console.error('Error:', err);
+        console.error("Error:", err);
+        const tbody = document.querySelector('#feedbackTable tbody');
+        tbody.innerHTML = `<tr><td colspan="5" style="text-align:center; color:red;">ไม่สามารถโหลดข้อมูลได้</td></tr>`;
       }
+    }
+
+    function renderFeedback() {
+      const tbody = document.querySelector('#feedbackTable tbody');
+      tbody.innerHTML = '';
+
+      if (feedbackList.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="5" style="text-align:center; color:#888;">ไม่มีข้อความ</td></tr>`;
+        document.getElementById("pagination").innerHTML = "";
+        return;
+      }
+
+      const start = (currentPage - 1) * itemsPerPage;
+      const pageData = feedbackList.slice(start, start + itemsPerPage);
+
+      pageData.forEach(item => {
+        const tr = document.createElement('tr');
+        const date = new Date(item.created_at).toLocaleDateString('th-TH', {
+          day: '2-digit', month: 'long', year: 'numeric'
+        });
+        tr.innerHTML = `
+          <td>${item.name}</td>
+          <td>${item.username}</td>
+          <td>${item.message}</td>
+          <td>${date}</td>
+          <td>
+            <button class="btn-delete" onclick="deleteFeedback(${item.contact_id}, this)">ลบ</button>
+          </td>
+        `;
+        tbody.appendChild(tr);
+      });
+
+      renderPagination();
+    }
+
+    function renderPagination() {
+      const totalPages = Math.ceil(feedbackList.length / itemsPerPage);
+      const pagination = document.getElementById("pagination");
+      pagination.innerHTML = "";
+
+      if (totalPages <= 1) return;
+
+      const prev = document.createElement("button");
+      prev.textContent = "« ก่อนหน้า";
+      prev.disabled = currentPage === 1;
+      prev.onclick = () => { currentPage--; renderFeedback(); };
+      pagination.appendChild(prev);
+
+      for (let i = 1; i <= totalPages; i++) {
+        const btn = document.createElement("button");
+        btn.textContent = i;
+        if (i === currentPage) btn.classList.add("active");
+        btn.onclick = () => { currentPage = i; renderFeedback(); };
+        pagination.appendChild(btn);
+      }
+
+      const next = document.createElement("button");
+      next.textContent = "ถัดไป »";
+      next.disabled = currentPage === totalPages;
+      next.onclick = () => { currentPage++; renderFeedback(); };
+      pagination.appendChild(next);
     }
 
     async function deleteFeedback(id, button) {
       if (!confirm("คุณแน่ใจหรือไม่ว่าต้องการลบข้อความนี้?")) return;
 
       try {
-        const res = await fetch(`http://127.0.0.1:8000/api/contact-admin/${id}`, {
-          method: 'DELETE'
-        });
-
+        const res = await fetch(`${API_BASE}/api/contact-admin/${id}`, { method: 'DELETE' });
         if (res.ok) {
           alert("ลบสำเร็จ");
-          // ลบ row ในตารางทันที
-          button.closest('tr').remove();
-
-          // ถ้าตารางว่างหลังลบ แสดงข้อความ "ไม่มีข้อความ"
-          const tbody = document.querySelector('#feedbackTable tbody');
-          if (tbody.children.length === 0) {
-            const tr = document.createElement('tr');
-            tr.innerHTML = `<td colspan="5" style="text-align:center; color:#888;">ไม่มีข้อความ</td>`;
-            tbody.appendChild(tr);
-          }    
-
+          feedbackList = feedbackList.filter(item => item.contact_id !== id);
+          renderFeedback();
         } else {
           const err = await res.json();
           alert("ลบไม่สำเร็จ: " + err.detail);
@@ -118,12 +206,15 @@
       }
     }
 
-    // โหลด feedback ตอนเปิดหน้า
-    loadFeedback();
-    </script>
+    window.addEventListener('DOMContentLoaded', loadFeedback);
+  </script>
 
 </body>
 </html>
+
+
+
+
 
 
 

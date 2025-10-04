@@ -6,116 +6,59 @@
   <title>จัดการผู้ใช้งาน</title>
   <link href="https://fonts.googleapis.com/css2?family=Sarabun&display=swap" rel="stylesheet">
   <style>
-    body { 
-      font-family: 'Sarabun', Arial, sans-serif; 
-      margin: 0; 
-      display: flex; 
-    }
+    body { font-family: 'Sarabun', Arial, sans-serif; margin: 0; display: flex; }
     nav.sidebar {
-      width: 220px;
-      background: #333;
-      color: #fff;
-      min-height: 100vh;
-      padding: 20px;
+      width: 220px; background: #333; color: #fff; min-height: 100vh; padding: 20px;
     }
     nav.sidebar h2 { font-size: 20px; margin-bottom: 20px; }
     nav.sidebar a {
-      display: block;
-      color: #fff;
-      text-decoration: none;
-      margin-bottom: 10px;
-      padding: 10px;
-      background: #444;
-      border-radius: 5px;
+      display: block; color: #fff; text-decoration: none;
+      margin-bottom: 10px; padding: 10px; background: #444; border-radius: 5px;
     }
     nav.sidebar a:hover { background: #555; }
+    main.content { flex: 1; padding: 20px; }
 
-    main.content {
-      flex: 1;
-      padding: 20px;
-    }
-
-    table { 
-      width: 100%; 
-      border-collapse: collapse; 
-      margin-top: 20px; 
-    }
-    th, td { 
-      border: 1px solid #ccc; 
-      padding: 10px; 
-      text-align: left; 
-    }
-    th { 
-      background-color: #f2f2f2; 
-    }
-    .btn-edit {
-      background-color: #4CAF50;
-      color: white;
-      border: none;
-      padding: 5px 10px;
-      border-radius: 3px;
-      cursor: pointer;
-    }
-    .btn-delete {
-      background-color: #f44336;
-      color: white;
-      border: none;
-      padding: 5px 10px;
-      border-radius: 3px;
-      cursor: pointer;
-    }
-    button:hover {
-      opacity: 0.8;
-    }
+    table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+    th, td { border: 1px solid #ccc; padding: 10px; text-align: left; }
+    th { background-color: #f2f2f2; }
+    .btn-edit { background-color: #4CAF50; color: white; border: none; padding: 5px 10px; border-radius: 3px; cursor: pointer; }
+    .btn-delete { background-color: #f44336; color: white; border: none; padding: 5px 10px; border-radius: 3px; cursor: pointer; }
+    button:hover { opacity: 0.8; }
 
     /* Modal */
     #editModal {
-      display: none;
-      position: fixed;
-      top:0; left:0; width:100%; height:100%;
-      background: rgba(0,0,0,0.5);
-      justify-content: center;
-      align-items: center;
+      display: none; position: fixed; top:0; left:0; width:100%; height:100%;
+      background: rgba(0,0,0,0.5); justify-content: center; align-items: center;
     }
     #editModalContent {
-      background: white;
-      padding: 20px;
-      border-radius: 5px;
-      width: 300px;
-      position: relative;
+      background: white; padding: 20px; border-radius: 5px; width: 300px; position: relative;
     }
-    #editModalContent input {
-      width: 100%;
-      padding: 5px;
-      margin-bottom: 10px;
-    }
-    #editModalContent button {
-      margin-right: 10px;
-    }
+    #editModalContent input { width: 100%; padding: 5px; margin-bottom: 10px; }
 
-    @media (max-width: 768px) {
-      nav.sidebar { width: 100px; }
-      nav.sidebar h2 { font-size: 16px; }
-      nav.sidebar a { font-size: 14px; padding: 5px; }
+    /* Pagination */
+    .pagination { text-align: center; margin-top: 15px; }
+    .pagination button {
+      margin: 3px; padding: 6px 12px;
+      background: #eee; border: 1px solid #ccc; border-radius: 4px; cursor: pointer;
     }
+    .pagination button.active { background: #3b5bdb; color: #fff; }
   </style>
 </head>
 <body>
 
-  <nav class="sidebar">
-    <h2>เมนู</h2>
-    <a href="homepage_admin.html">HOME PAGE</a>
-    <a href="manage_user.html">จัดการผู้ใช้งาน</a>
-    <a href="create_answer.html">เพิ่มคำตอบนักเรียน</a>
-    <a href="show_answer.html">ตรวจสอบคำตอบนักเรียน</a>    
-    <a href="view_feedback.html">ตรวจสอบความคิดเห็นของผู้ใช้งาน</a>
-    <a href="settings.html">ตั้งค่าระบบ</a>
-    <a href="login.html">ออกจากระบบ</a>
-  </nav>
+<nav class="sidebar">
+  <h2>เมนู</h2>
+  <a href="homepage_admin.html">HOME PAGE</a>
+  <a href="manage_user.html">จัดการผู้ใช้งาน</a>
+  <a href="create_answer.html">เพิ่มคำตอบนักเรียน</a>
+  <a href="show_answer.html">ตรวจสอบคำตอบนักเรียน</a>
+  <a href="view_feedback.html">ตรวจสอบความคิดเห็นของผู้ใช้งาน</a>
+  <a href="settings.html">ตั้งค่าระบบ</a>
+  <a href="login.html">ออกจากระบบ</a>
+</nav>
 
 <main class="content">
   <h1>จัดการผู้ใช้งาน</h1>
-
   <table>
     <thead>
       <tr>
@@ -125,13 +68,12 @@
         <th>การดำเนินการ</th>
       </tr>
     </thead>
-    <tbody id="user-table-body">
-      <!-- JavaScript จะเติมข้อมูลตรงนี้ -->
-    </tbody>
+    <tbody id="user-table-body"></tbody>
   </table>
+  <div class="pagination" id="pagination"></div>
 </main>
 
-<!-- Modal แก้ไขผู้ใช้ -->
+<!-- Modal -->
 <div id="editModal">
   <div id="editModalContent">
     <h3>แก้ไขผู้ใช้งาน</h3>
@@ -153,106 +95,100 @@
 </div>
 
 <script>
+let users = [];
+let currentPage = 1;
+const itemsPerPage = 50;
+
 async function loadUsers() {
   try {
     const res = await fetch("http://127.0.0.1:8000/api/users");
     const data = await res.json();
-
-    const tbody = document.getElementById("user-table-body");
-    tbody.innerHTML = "";
-
-    data.users.forEach(user => {
-      const row = `
-        <tr>
-          <td>${user.username}</td>
-          <td>${user.fullname}</td>
-          <td>${user.role}</td>
-          <td>
-            <button class="btn-edit" onclick="editUser('${user.username}')">แก้ไข</button>
-            <button class="btn-delete" onclick="confirmDelete('${user.username}')">ลบ</button>
-          </td>
-        </tr>
-      `;
-      tbody.innerHTML += row;
-    });
+    users = data.users || [];
+    renderTable();
   } catch (err) {
     console.error("โหลดข้อมูลผู้ใช้งานล้มเหลว:", err);
   }
 }
 
-async function confirmDelete(username) {
-  if (!confirm(`คุณแน่ใจว่าต้องการลบผู้ใช้ ${username} ?`)) return;
-  try {
-    const res = await fetch(`http://127.0.0.1:8000/api/delete_user?username=${username}`, { method: "DELETE" });
-    const data = await res.json();
-    if (res.ok) {
-      alert(data.message);
-      loadUsers();
-    } else {
-      alert(data.detail || "เกิดข้อผิดพลาดในการลบผู้ใช้งาน");
-    }
-  } catch (err) {
-    console.error(err);
-    alert("เกิดข้อผิดพลาดในการเชื่อมต่อ API");
-  }
+function renderTable() {
+  const tbody = document.getElementById("user-table-body");
+  tbody.innerHTML = "";
+
+  const start = (currentPage - 1) * itemsPerPage;
+  const pageData = users.slice(start, start + itemsPerPage);
+
+  pageData.forEach(user => {
+    tbody.innerHTML += `
+      <tr>
+        <td>${user.username}</td>
+        <td>${user.fullname}</td>
+        <td>${user.role}</td>
+        <td>
+          <button class="btn-edit" onclick="editUser('${user.username}')">แก้ไข</button>
+          <button class="btn-delete" onclick="confirmDelete('${user.username}')">ลบ</button>
+        </td>
+      </tr>
+    `;
+  });
+  renderPagination();
 }
 
-// เปิด modal และใส่ข้อมูลเดิม
+function renderPagination() {
+  const totalPages = Math.ceil(users.length / itemsPerPage);
+  const pagination = document.getElementById("pagination");
+  pagination.innerHTML = "";
+
+  if (totalPages <= 1) return;
+
+  const prev = document.createElement("button");
+  prev.textContent = "« ก่อนหน้า";
+  prev.disabled = currentPage === 1;
+  prev.onclick = () => { currentPage--; renderTable(); };
+  pagination.appendChild(prev);
+
+  for (let i = 1; i <= totalPages; i++) {
+    const btn = document.createElement("button");
+    btn.textContent = i;
+    if (i === currentPage) btn.classList.add("active");
+    btn.onclick = () => { currentPage = i; renderTable(); };
+    pagination.appendChild(btn);
+  }
+
+  const next = document.createElement("button");
+  next.textContent = "ถัดไป »";
+  next.disabled = currentPage === totalPages;
+  next.onclick = () => { currentPage++; renderTable(); };
+  pagination.appendChild(next);
+}
+
+// ===== ส่วนแก้ไขและลบผู้ใช้ (คงเดิม) =====
+async function confirmDelete(username) {
+  if (!confirm(`คุณแน่ใจว่าต้องการลบผู้ใช้ ${username} ?`)) return;
+  await fetch(`http://127.0.0.1:8000/api/delete_user?username=${username}`, { method: "DELETE" });
+  loadUsers();
+}
+
 function editUser(oldUsername) {
-  const row = Array.from(document.querySelectorAll("#user-table-body tr"))
-                  .find(tr => tr.children[0].textContent === oldUsername);
-  if (!row) return;
-
-  document.getElementById("oldUsername").value = oldUsername;
-  document.getElementById("newUsername").value = oldUsername;
-  document.getElementById("fullname").value = row.children[1].textContent;
+  const user = users.find(u => u.username === oldUsername);
+  if (!user) return;
+  document.getElementById("oldUsername").value = user.username;
+  document.getElementById("newUsername").value = user.username;
+  document.getElementById("fullname").value = user.fullname;
   document.getElementById("password").value = "";
-
   document.getElementById("editModal").style.display = "flex";
 }
 
-function closeModal() {
-  document.getElementById("editModal").style.display = "none";
-}
+function closeModal() { document.getElementById("editModal").style.display = "none"; }
 
-// ส่งข้อมูลแก้ไข
 document.getElementById("editForm").addEventListener("submit", async (e) => {
   e.preventDefault();
-
-  const oldUsername = document.getElementById("oldUsername").value;
-  const newUsername = document.getElementById("newUsername").value;
-  const fullname = document.getElementById("fullname").value;
-  const password = document.getElementById("password").value;
-
-  const formData = new FormData();
-  formData.append("username", oldUsername);
-  if (newUsername) formData.append("new_username", newUsername);
-  if (fullname) formData.append("fullname", fullname);
-  if (password) formData.append("password", password);
-
-  try {
-    const res = await fetch("http://127.0.0.1:8000/api/update_user", {
-      method: "POST",
-      body: formData
-    });
-    const data = await res.json();
-    if (res.ok) {
-      alert(data.message);
-      localStorage.setItem("username", data.new_username);
-      loadUsers();
-      closeModal();
-    } else {
-      alert(data.detail || "เกิดข้อผิดพลาดในการอัปเดต");
-    }
-  } catch (err) {
-    console.error(err);
-    alert("เชื่อมต่อ API ล้มเหลว");
-  }
+  const formData = new FormData(e.target);
+  await fetch("http://127.0.0.1:8000/api/update_user", { method: "POST", body: formData });
+  closeModal();
+  loadUsers();
 });
 
-// โหลดข้อมูลทันทีเมื่อเปิดหน้า
 document.addEventListener("DOMContentLoaded", loadUsers);
 </script>
-
 </body>
 </html>

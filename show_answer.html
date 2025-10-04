@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>แสดงคำตอบนักเรียน</title>
+  <title>ตรวจสอบคำตอบนักเรียน</title>
   <link href="https://fonts.googleapis.com/css2?family=Sarabun&display=swap" rel="stylesheet">
   <style>
     body { font-family: 'Sarabun', Arial, sans-serif; margin: 0; display: flex; background: #f5f7fa; }
@@ -15,9 +15,54 @@
     main.content { flex: 1; padding: 20px; overflow-x: auto; }
     h1 { text-align: center; margin-bottom: 20px; }
 
+    .filters {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-bottom: 20px;
+      justify-content: center;
+    }
+
+    select, input {
+      padding: 8px;
+      border-radius: 5px;
+      border: 1px solid #ccc;
+      font-family: 'Sarabun', sans-serif;
+    }
+
+    button {
+      padding: 8px 16px;
+      border: none;
+      background: #3b5bdb;
+      color: #fff;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+
+    button:hover {
+      opacity: 0.9;
+    }
+
     table { width: 100%; border-collapse: collapse; background: white; border-radius: 10px; overflow: hidden; }
     th, td { padding: 10px; border-bottom: 1px solid #ddd; text-align: left; }
     th { background: #3b5bdb; color: white; }
+
+    .pagination {
+      margin-top: 20px;
+      text-align: center;
+    }
+
+    .pagination button {
+      margin: 2px;
+      background: #eee;
+      color: #333;
+      border: 1px solid #ccc;
+    }
+
+    .pagination button.active {
+      background: #3b5bdb;
+      color: white;
+    }
 
     @media (max-width: 768px) {
       nav.sidebar { width: 100px; }
@@ -40,16 +85,32 @@
   </nav>
 
   <main class="content">
-    <h1>คำตอบนักเรียนทั้งหมด</h1>
+    <h1>ตรวจสอบคำตอบนักเรียน</h1>
+
+    <!-- 🔹 ฟิลเตอร์ค้นหา -->
+    <div class="filters">
+      <select id="yearSelect">
+        <option value="">-- เลือกปีการสอบ --</option>
+      </select>
+
+      <select id="groupSelect">
+        <option value="">-- เลือกระดับชั้นเรียน --</option>
+      </select>
+
+      <input type="text" id="studentInput" placeholder="รหัสนักเรียน (เว้นว่างได้)">
+      <button id="filterBtn">ค้นหา</button>
+      <button id="resetBtn" style="background:#999;">ล้างค่า</button>
+    </div>
+
     <table id="answersTable">
       <thead>
         <tr>
           <th>ID</th>
           <th>รหัสนักเรียน</th>
           <th>ปีการสอบ</th>
+          <th>ระดับชั้นเรียน</th>
           <th>คำตอบข้อที่ 1</th>
           <th>คำตอบข้อที่ 2</th>
-          <th>ชั้นเรียน</th>
           <th>สถานะ</th>
         </tr>
       </thead>
@@ -57,43 +118,162 @@
         <tr><td colspan="7" style="text-align:center; color:#888;">กำลังโหลด...</td></tr>
       </tbody>
     </table>
+
+    <div class="pagination" id="pagination"></div>
   </main>
 
 <script>
-const API_BASE = 'http://localhost:8000';
+const API_BASE = 'http://127.0.0.1:8000';
 const tableBody = document.querySelector('#answersTable tbody');
+const pagination = document.getElementById('pagination');
+const yearSelect = document.getElementById('yearSelect');
+const groupSelect = document.getElementById('groupSelect');
+const studentInput = document.getElementById('studentInput');
+const filterBtn = document.getElementById('filterBtn');
+const resetBtn = document.getElementById('resetBtn');
 
+let allAnswers = [];
+let filteredAnswers = [];
+let currentPage = 1;
+const itemsPerPage = 50;
+
+// โหลดปีการสอบจาก API
+async function loadExamYears() {
+  try {
+    const res = await fetch(`${API_BASE}/exam_years`);
+    const years = await res.json();
+    years.forEach(y => {
+      const opt = document.createElement('option');
+      opt.value = y;
+      opt.textContent = y;
+      yearSelect.appendChild(opt);
+    });
+  } catch (err) {
+    console.error('โหลดปีการสอบไม่สำเร็จ:', err);
+  }
+}
+
+// โหลดกลุ่มการสอบจาก API
+async function loadGroups() {
+  try {
+    const res = await fetch(`${API_BASE}/group_ids`);
+    const groups = await res.json();
+    groups.forEach(g => {
+      const opt = document.createElement('option');
+      opt.value = g;
+      opt.textContent = g;
+      groupSelect.appendChild(opt);
+    });
+  } catch (err) {
+    console.error('โหลดระดับชั้นเรียนไม่สำเร็จ:', err);
+  }
+}
+
+// โหลดคำตอบทั้งหมด
 async function loadAnswers() {
   try {
     const res = await fetch(`${API_BASE}/api/answers-all`);
     if (!res.ok) throw new Error(`Error ${res.status}`);
-    const data = await res.json();
-
-    tableBody.innerHTML = '';
-    if (data.length === 0) {
-      tableBody.innerHTML = `<tr><td colspan="7" style="text-align:center; color:#888;">ไม่มีคำตอบ</td></tr>`;
-      return;
-    }
-
-    data.forEach(ans => {
-      const row = `<tr>
-        <td>${ans.answer_id}</td>
-        <td>${ans.student_id}</td>
-        <td>${ans.exam_year}</td>
-        <td>${ans.essay_text}</td>
-        <td>${ans.essay_analysis}</td>
-        <td>${ans.group_id}</td>
-        <td>${ans.status}</td>
-      </tr>`;
-      tableBody.innerHTML += row;
-    });
+    allAnswers = await res.json();
+    filteredAnswers = allAnswers;
+    currentPage = 1;
+    renderTable();
   } catch (err) {
     console.error('loadAnswers error:', err);
     tableBody.innerHTML = `<tr><td colspan="7" style="text-align:center; color:red;">ไม่สามารถโหลดคำตอบ: ${err.message}</td></tr>`;
   }
 }
 
-window.addEventListener('DOMContentLoaded', loadAnswers);
+// แสดงผลตารางพร้อมแบ่งหน้า
+function renderTable() {
+  tableBody.innerHTML = '';
+  if (filteredAnswers.length === 0) {
+    tableBody.innerHTML = `<tr><td colspan="7" style="text-align:center; color:#888;">ไม่มีคำตอบ</td></tr>`;
+    pagination.innerHTML = '';
+    return;
+  }
+
+  const start = (currentPage - 1) * itemsPerPage;
+  const end = start + itemsPerPage;
+  const pageData = filteredAnswers.slice(start, end);
+
+  pageData.forEach(ans => {
+    const row = `<tr>
+      <td>${ans.answer_id}</td>
+      <td>${ans.student_id}</td>
+      <td>${ans.exam_year}</td>
+      <td>${ans.group_id}</td>
+      <td>${ans.essay_text}</td>
+      <td>${ans.essay_analysis}</td>
+      <td>${ans.status}</td>
+    </tr>`;
+    tableBody.innerHTML += row;
+  });
+
+  renderPagination();
+}
+
+// แสดงปุ่มแบ่งหน้า
+function renderPagination() {
+  const totalPages = Math.ceil(filteredAnswers.length / itemsPerPage);
+  pagination.innerHTML = '';
+
+  if (totalPages <= 1) return;
+
+  const prevBtn = document.createElement('button');
+  prevBtn.textContent = '« ก่อนหน้า';
+  prevBtn.disabled = currentPage === 1;
+  prevBtn.onclick = () => { currentPage--; renderTable(); };
+  pagination.appendChild(prevBtn);
+
+  for (let i = 1; i <= totalPages; i++) {
+    const btn = document.createElement('button');
+    btn.textContent = i;
+    if (i === currentPage) btn.classList.add('active');
+    btn.onclick = () => { currentPage = i; renderTable(); };
+    pagination.appendChild(btn);
+  }
+
+  const nextBtn = document.createElement('button');
+  nextBtn.textContent = 'ถัดไป »';
+  nextBtn.disabled = currentPage === totalPages;
+  nextBtn.onclick = () => { currentPage++; renderTable(); };
+  pagination.appendChild(nextBtn);
+}
+
+// ฟิลเตอร์ข้อมูล
+function filterAnswers() {
+  const year = yearSelect.value;
+  const group = groupSelect.value;
+  const student = studentInput.value.trim();
+
+  filteredAnswers = allAnswers.filter(a => {
+    return (!year || a.exam_year == year) &&
+           (!group || a.group_id == group) &&
+           (!student || a.student_id.toString().includes(student));
+  });
+
+  currentPage = 1;
+  renderTable();
+}
+
+// ปุ่มกด
+filterBtn.addEventListener('click', filterAnswers);
+resetBtn.addEventListener('click', () => {
+  yearSelect.value = '';
+  groupSelect.value = '';
+  studentInput.value = '';
+  filteredAnswers = allAnswers;
+  currentPage = 1;
+  renderTable();
+});
+
+// โหลดทุกอย่างตอนเริ่ม
+window.addEventListener('DOMContentLoaded', () => {
+  loadExamYears();
+  loadGroups();
+  loadAnswers();
+});
 </script>
 
 </body>

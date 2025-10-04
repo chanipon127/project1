@@ -12,14 +12,14 @@
     }
 
     .navbar {
-      position: sticky; /* ติดด้านบน */
+      position: sticky;
       top: 0;
-      background-color: #4c65af; /* สีเดียว */
+      background-color: #4c65af;
       padding: 12px 30px;
       display: flex;
-      justify-content: center; /* <- เปลี่ยนจาก flex-start เป็น center */
+      justify-content: center;
       align-items: center;
-      box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
       z-index: 999;
     }
 
@@ -34,16 +34,15 @@
     }
 
     .navbar a:hover {
-      background-color: rgba(255,255,255,0.2);
+      background-color: rgba(255, 255, 255, 0.2);
       color: #ffeb3b;
     }
 
     .navbar-left {
       display: flex;
-      gap: 15px; /* เพิ่มช่องว่างระหว่างลิงก์ */
+      gap: 15px;
     }
 
-    /* ซ่อน scrollbar แบบสวย */
     .navbar-left::-webkit-scrollbar {
       display: none;
     }
@@ -106,6 +105,17 @@
     h2 {
       margin-top: 0;
     }
+
+    #pagination {
+      margin-top: 15px;
+      text-align: center;
+    }
+
+    #pagination button,
+    #pagination select {
+      margin: 0 5px;
+      padding: 6px 12px;
+    }
   </style>
 </head>
 
@@ -121,7 +131,6 @@
       <a href="contact_admin.html">ติดต่อแอดมิน</a>
       <a href="login.html">ออกจากระบบ</a>
     </div>
-
   </div>
 
   <!-- Main Container -->
@@ -129,26 +138,24 @@
     <h2>รายชื่อนักเรียน</h2>
 
     <div class="filters">
-      <label>ปีการศึกษา:
-        <select id="year">
-          <option value="">-- เลือกปีการศึกษา --</option>
+      <label>ปีการศึกษา: <span id="yearDisplay"></span></label>
+      <label style="margin-left:20px;">ระดับชั้นเรียน: <span id="gradeDisplay"></span></label>
+      <label style="margin-left:20px;">สถานะ:
+        <select id="status">
+          <option value="">-- ทุกสถานะ --</option>
+          <option value="ตรวจแล้ว">ตรวจแล้ว</option>
+          <option value="ยังไม่ได้ตรวจ">ยังไม่ได้ตรวจ</option>
         </select>
       </label>
-
-      <label>กลุ่มการสอบ:
-        <select id="group">
-          <option value="">-- เลือกกลุ่มการสอบ --</option>
-        </select>
-      </label>
-
       <button onclick="loadData()">โหลดข้อมูล</button>
     </div>
+
 
     <table>
       <thead>
         <tr>
           <th>รหัสนักเรียน</th>
-          <th>ชั้นเรียน</th>
+          <th>ระดับชั้นเรียน</th>
           <th>ปีการศึกษา</th>
           <th>สถานะ</th>
           <th>ผลคะแนน</th>
@@ -156,10 +163,15 @@
       </thead>
       <tbody id="studentTableBody"></tbody>
     </table>
+
+    <!-- ✅ Pagination -->
+    <div id="pagination"></div>
   </div>
 
   <script>
-    let allData = []; // เก็บข้อมูลทั้งหมดจาก API
+    let allData = [];
+    let currentPage = 1;
+    const itemsPerPage = 50;
 
     // โหลดตัวเลือกปี/กลุ่ม
     async function loadFilters() {
@@ -168,13 +180,11 @@
         if (!res.ok) throw new Error("โหลดข้อมูลไม่สำเร็จ");
         allData = await res.json();
 
-        // เก็บข้อมูลดิบไว้ใน sessionStorage
         sessionStorage.setItem("allData", JSON.stringify(allData));
-
         populateFilters();
-        restoreSelectionsAndTable(); // กู้ค่าที่เคยเลือกไว้
+        restoreSelectionsAndTable();
       } catch (err) {
-        alert("โหลดตัวเลือกปี/กลุ่มไม่สำเร็จ: " + err.message);
+        alert("โหลดตัวเลือกปี/ระดับชั้นเรียนไม่สำเร็จ: " + err.message);
       }
     }
 
@@ -191,7 +201,7 @@
 
       const groups = [...new Set(allData.map(item => item.group_id))];
       const groupSelect = document.getElementById("group");
-      groupSelect.innerHTML = '<option value="">-- เลือกกลุ่มการสอบ --</option>';
+      groupSelect.innerHTML = '<option value="">-- เลือกระดับชั้นเรียน --</option>';
       groups.forEach(g => {
         const option = document.createElement("option");
         option.value = g;
@@ -200,20 +210,26 @@
       });
     }
 
+
     function loadData() {
       const year = document.getElementById("year").value;
       const group = document.getElementById("group").value;
+      const status = document.getElementById("status").value;
 
-      // เก็บค่าที่เลือกไว้
-      sessionStorage.setItem("selectedYear", year);
-      sessionStorage.setItem("selectedGroup", group);
 
       let data = [...allData];
       if (year) data = data.filter(item => String(item.exam_year) === year);
-      if (group) data = data.filter(item => String(item.group_id) === group);
+      if (group) data = data.filter(item => String(item.group_id) === grade);
+      if (status) {
+        if (status === "ตรวจแล้ว")
+          data = data.filter(item => item.status === "ตรวจแล้ว");
+        else if (status === "ยังไม่ได้ตรวจ")
+          data = data.filter(item => item.status !== "ตรวจแล้ว");
+      }
 
       renderTable(data);
     }
+
 
     function renderTable(data) {
       const tbody = document.getElementById("studentTableBody");
@@ -221,10 +237,15 @@
 
       if (data.length === 0) {
         tbody.innerHTML = `<tr><td colspan="5">ไม่พบข้อมูล</td></tr>`;
+        document.getElementById("pagination").innerHTML = "";
         return;
       }
 
-      data.forEach(ans => {
+      const start = (currentPage - 1) * itemsPerPage;
+      const end = start + itemsPerPage;
+      const pageData = data.slice(start, end);
+
+      pageData.forEach(ans => {
         const row = document.createElement("tr");
         row.innerHTML = `
           <td>${ans.student_id}</td>
@@ -241,6 +262,49 @@
         `;
         tbody.appendChild(row);
       });
+
+      renderPagination(data.length);
+    }
+
+    function renderPagination(totalItems) {
+      const totalPages = Math.ceil(totalItems / itemsPerPage);
+      const pagination = document.getElementById("pagination");
+      pagination.innerHTML = "";
+
+      if (totalPages <= 1) return;
+
+      const prevBtn = document.createElement("button");
+      prevBtn.textContent = "ก่อนหน้า";
+      prevBtn.disabled = currentPage === 1;
+      prevBtn.onclick = () => {
+        currentPage--;
+        loadData();
+      };
+      pagination.appendChild(prevBtn);
+
+      const select = document.createElement("select");
+      select.style.margin = "0 10px";
+      for (let i = 1; i <= totalPages; i++) {
+        const option = document.createElement("option");
+        option.value = i;
+        option.textContent = `หน้า ${i}`;
+        if (i === currentPage) option.selected = true;
+        select.appendChild(option);
+      }
+      select.onchange = e => {
+        currentPage = parseInt(e.target.value);
+        loadData();
+      };
+      pagination.appendChild(select);
+
+      const nextBtn = document.createElement("button");
+      nextBtn.textContent = "ถัดไป";
+      nextBtn.disabled = currentPage === totalPages;
+      nextBtn.onclick = () => {
+        currentPage++;
+        loadData();
+      };
+      pagination.appendChild(nextBtn);
     }
 
     async function startCheck(answerId, btn) {
@@ -251,7 +315,6 @@
         const result = await res.json();
 
         if (res.ok) {
-
           const statusTd = btn.closest("tr").querySelector(".status-col");
           statusTd.classList.remove("status-unchecked");
           statusTd.classList.add("status-checked");
@@ -264,7 +327,6 @@
           viewBtn.addEventListener("click", () => viewScore(answerId));
           actionTd.appendChild(viewBtn);
 
-          // อัปเดตข้อมูลใน allData ด้วย
           const updated = allData.find(item => item.answer_id === answerId);
           if (updated) updated.status = "ตรวจแล้ว";
           sessionStorage.setItem("allData", JSON.stringify(allData));
@@ -281,7 +343,7 @@
         btn.innerText = "ตรวจ";
       }
     }
-    
+
     function viewScore(answerId) {
       window.location.href = `view_score.html?answer_id=${answerId}`;
     }
@@ -289,12 +351,12 @@
     function restoreSelectionsAndTable() {
       const savedYear = sessionStorage.getItem("selectedYear");
       const savedGroup = sessionStorage.getItem("selectedGroup");
+      const savedStatus = sessionStorage.getItem("selectedStatus");
+      if (savedStatus) document.getElementById("status").value = savedStatus;
+
       if (savedYear) document.getElementById("year").value = savedYear;
       if (savedGroup) document.getElementById("group").value = savedGroup;
-
-      if (savedYear || savedGroup) {
-        loadData();
-      }
+      if (savedYear || savedGroup) loadData();
     }
 
     document.addEventListener("DOMContentLoaded", () => {
@@ -306,13 +368,11 @@
       } else {
         loadFilters();
       }
+      // ✅ แสดงค่าปีและชั้นเรียนจาก localStorage
+      document.getElementById("yearDisplay").textContent = localStorage.getItem("exam_year") || "-";
+      document.getElementById("gradeDisplay").textContent = localStorage.getItem("exam_grade") || "-";
     });
   </script>
-
-</body>
-
-</html>
-
 </body>
 
 </html>

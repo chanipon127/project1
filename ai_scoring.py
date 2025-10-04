@@ -27,7 +27,7 @@ model = SentenceTransformer('paraphrase-multilingual-MiniLM-L12-v2')
 BASE_DIR = os.path.dirname(__file__)  # โฟลเดอร์ปัจจุบัน
 
 # ---- thai_loanwords ----
-json_path = os.path.join(BASE_DIR, "data", "thai_loanwords_new_update.json")
+json_path = os.path.join(BASE_DIR, "data", "D:\\project1\data\\thai_loanwords_new_update.json")
 try:
     with open(json_path, "r", encoding="utf-8") as f:
         thai_loanwords = json.load(f)
@@ -40,7 +40,7 @@ except FileNotFoundError:
     loanwords_whitelist = set()
 
 # ---- common misspellings ----
-misspellings_path = os.path.join(BASE_DIR, "data", "update_common_misspellings.json")
+misspellings_path = os.path.join(BASE_DIR, "data", r"D:\\project1\data\\update_common_misspellings.json")
 
 try:
     with open(misspellings_path, "r", encoding="utf-8") as f:
@@ -1349,11 +1349,11 @@ def evaluate_comment_validity(text):
     }
 
 #------------------S11 การสะกดคำ (ข้อ 2) --------------------
-with open(r'D:\project1\thai_loanwords_new_update(1) (3).json', 'r', encoding='utf-8') as f:
+with open(r'D:\\project1\\thai_loanwords_new_update(1) (3).json', 'r', encoding='utf-8') as f:
      loanwords_data = json.load(f)
      loanwords_whitelist = set(item['thai_word'] for item in loanwords_data)
 
-with open(r'D:\project1\update_common_misspellings (1) (1).json', 'r', encoding='utf-8') as f:
+with open(r'D:\\project1\\update_common_misspellings (1) (1).json', 'r', encoding='utf-8') as f:
     raw_data = f.read()
 
 # แทนที่ NaN ด้วย null
@@ -1363,7 +1363,7 @@ data = json.loads(raw_data)
 COMMON_MISSPELLINGS = {item['wrong']: item.get('right') for item in data}
 
 
-with open(r"D:\project1\splitable_phrases (1).json", "r", encoding="utf-8") as f:
+with open(r"D:\\project1\\splitable_phrases (1).json", "r", encoding="utf-8") as f:
     splitable_phrases = set(json.load(f))
 
 API_KEY = '33586c7cf5bfa0029887a9981bf94963'
@@ -1824,12 +1824,12 @@ def evaluate_single_answer(answer_text, essay_analysis):
     if agreement_score == 0 and s8_score == 0:
         return convert_numpy_to_python({
             "ข้อที่ 1": {
-                "ใจความสำคัญ (4 คะแนน)": mind_score,
-                "เรียงลำดับ (2 คะแนน)": {"score": ordering1_score, "details": ordering1_details},
-                "ความถูกต้องย่อความ (1 คะแนน)": {"score": summary1_score, "details": summary1_details},
-                "การสะกดคำ (1 คะแนน)": {"score": spelling_score, "details": spelling_res},
-                "การใช้คำ/ถ้อยคำสำนวน (1 คะแนน)": {"score": score_s5,"details": s5_result},
-                "การใช้ประโยค (1 คะแนน)": {"score": score_s6,"details": s6_result},
+                "ใจความสำคัญ": mind_score,
+                "เรียงลำดับ": {"score": ordering1_score, "details": ordering1_details},
+                "ความถูกต้องย่อความ": {"score": summary1_score, "details": summary1_details},
+                "การสะกดคำ": {"score": spelling_score, "details": spelling_res},
+                "การใช้คำ/ถ้อยคำสำนวน": {"score": score_s5,"details": s5_result},
+                "การใช้ประโยค": {"score": score_s6,"details": s6_result},
                 "คะแนนรวมข้อที่ 1": total_score1
             },
             "ข้อที่ 2": {
@@ -1903,5 +1903,5 @@ def evaluate_single_answer(answer_text, essay_analysis):
         # -------- รวมคะแนน --------
         "คะแนนรวมข้อที่ 1": total_score1,
         "คะแนนรวมข้อที่ 2": total_score2,
-        "คะแนนรวมทั้งหมด (30 คะแนน)": total_all
+        "คะแนนรวมทั้งหมด": total_all
     })

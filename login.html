@@ -1,35 +1,176 @@
 <!DOCTYPE html>
 <html lang="th">
+
 <head>
   <meta charset="UTF-8">
   <title>ระบบตรวจข้อสอบอัตนัยด้วยปัญญาประดิษฐ์</title>
   <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;700&display=swap" rel="stylesheet">
   <style>
-    * { box-sizing: border-box; margin:0; padding:0; }
-    body { font-family: 'Sarabun', sans-serif; background: #f6f8fc; color:#333; height:100vh; display:flex; flex-direction:column; }
-    header { background: #4c65af; padding: 15px 40px; display:flex; justify-content:space-between; align-items:center; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
-    header h1 { color:#fff; font-size:22px; font-weight:bold; }
-    .logo img { height:48px; }
-    .content { flex:1; display:flex; justify-content:center; align-items:center; padding:20px; }
-    .card { background:white; border-radius:16px; box-shadow:0 8px 24px rgba(0,0,0,0.12); width:360px; overflow:hidden; animation:fadeIn 0.8s ease; }
-    @keyframes fadeIn { from { opacity:0; transform:translateY(-15px); } to { opacity:1; transform:translateY(0); } }
-    .card-header { background:linear-gradient(135deg, #4c65af, #6a82fb); padding:20px; text-align:center; color:white; }
-    .card-header h3 { margin:0; font-size:20px; font-weight:bold; }
-    .card-body { padding:30px; }
-    .form-group { margin-bottom:18px; text-align:left; }
-    .form-group label { display:block; font-weight:bold; margin-bottom:6px; font-size:14px; color:#444; }
-    .form-group input { width:100%; padding:12px; font-size:14px; border:1px solid #ddd; border-radius:10px; outline:none; transition:all 0.3s ease; }
-    .form-group input:focus { border-color:#4c65af; box-shadow:0 0 6px rgba(76,101,175,0.25); }
-    .form-group input[type="submit"] { background-color:#4c65af; color:white; border:none; cursor:pointer; font-size:15px; font-weight:bold; transition: background 0.3s, transform 0.1s; }
-    .form-group input[type="submit"]:hover { background-color:#3c5090; }
-    .form-group input[type="submit"]:active { transform:scale(0.97); }
-    #togglePassword { margin-top:8px; padding:8px 14px; background:#f8f9ff; border:1px solid #ccc; color:#4c65af; cursor:pointer; border-radius:6px; font-size:13px; display:block; margin-left:auto; margin-right:auto; transition:all 0.3s; }
-    #togglePassword:hover { background:#eef1ff; border-color:#4c65af; }
-    .footer { margin-top:10px; font-size:13px; color:#555; text-align:center; }
-    .footer a { color:#4c65af; text-decoration:none; font-weight:bold; }
-    .footer a:hover { text-decoration:underline; }
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'Sarabun', sans-serif;
+      background: #f6f8fc;
+      color: #333;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    header {
+      background: #4c65af;
+      padding: 15px 40px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    }
+
+    header h1 {
+      color: #fff;
+      font-size: 22px;
+      font-weight: bold;
+    }
+
+    .logo img {
+      height: 48px;
+    }
+
+    .content {
+      flex: 1;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      padding: 20px;
+    }
+
+    .card {
+      background: white;
+      border-radius: 16px;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+      width: 360px;
+      overflow: hidden;
+      animation: fadeIn 0.8s ease;
+    }
+
+    @keyframes fadeIn {
+      from {
+        opacity: 0;
+        transform: translateY(-15px);
+      }
+
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    .card-header {
+      background: linear-gradient(135deg, #4c65af, #6a82fb);
+      padding: 20px;
+      text-align: center;
+      color: white;
+    }
+
+    .card-header h3 {
+      margin: 0;
+      font-size: 20px;
+      font-weight: bold;
+    }
+
+    .card-body {
+      padding: 30px;
+    }
+
+    .form-group {
+      margin-bottom: 18px;
+      text-align: left;
+    }
+
+    .form-group label {
+      display: block;
+      font-weight: bold;
+      margin-bottom: 6px;
+      font-size: 14px;
+      color: #444;
+    }
+
+    .form-group input {
+      width: 100%;
+      padding: 12px;
+      font-size: 14px;
+      border: 1px solid #ddd;
+      border-radius: 10px;
+      outline: none;
+      transition: all 0.3s ease;
+    }
+
+    .form-group input:focus {
+      border-color: #4c65af;
+      box-shadow: 0 0 6px rgba(76, 101, 175, 0.25);
+    }
+
+    .form-group input[type="submit"] {
+      background-color: #4c65af;
+      color: white;
+      border: none;
+      cursor: pointer;
+      font-size: 15px;
+      font-weight: bold;
+      transition: background 0.3s, transform 0.1s;
+    }
+
+    .form-group input[type="submit"]:hover {
+      background-color: #3c5090;
+    }
+
+    .form-group input[type="submit"]:active {
+      transform: scale(0.97);
+    }
+
+    #togglePassword {
+      margin-top: 8px;
+      padding: 8px 14px;
+      background: #f8f9ff;
+      border: 1px solid #ccc;
+      color: #4c65af;
+      cursor: pointer;
+      border-radius: 6px;
+      font-size: 13px;
+      display: block;
+      margin-left: auto;
+      margin-right: auto;
+      transition: all 0.3s;
+    }
+
+    #togglePassword:hover {
+      background: #eef1ff;
+      border-color: #4c65af;
+    }
+
+    .footer {
+      margin-top: 10px;
+      font-size: 13px;
+      color: #555;
+      text-align: center;
+    }
+
+    .footer a {
+      color: #4c65af;
+      text-decoration: none;
+      font-weight: bold;
+    }
+
+    .footer a:hover {
+      text-decoration: underline;
+    }
   </style>
 </head>
+
 <body>
 
   <header>
@@ -84,7 +225,7 @@
     });
 
     // ฟังก์ชัน login
-    document.getElementById("loginForm").addEventListener("submit", async function(e){
+    document.getElementById("loginForm").addEventListener("submit", async function (e) {
       e.preventDefault();
       const username = document.getElementById("username").value;
       const password = document.getElementById("password").value;
@@ -97,24 +238,25 @@
         });
         const result = await res.json();
 
-        if(res.ok){
+        if (res.ok) {
           localStorage.setItem("username", result.username);
           localStorage.setItem("fullname", result.fullname);
           localStorage.setItem("role", result.role);
 
-          if(result.role === "admin"){
+          if (result.role === "admin") {
             window.location.href = "homepage_admin.html";
-          } else if(result.role === "examiner"){
-            window.location.href = "homepage_user.html";
+          } else if (result.role === "examiner") {
+            window.location.href = "exam_setup.html";
           }
         } else {
           alert("เกิดข้อผิดพลาดในการเข้าสู่ระบบ: " + result.detail);
         }
-      } catch(err){
+      } catch (err) {
         alert("ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้");
       }
     });
   </script>
 
 </body>
+
 </html>
