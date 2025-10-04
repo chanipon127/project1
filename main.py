@@ -414,6 +414,62 @@ async def upload_answers(file: UploadFile = File(...)):
             cursor.close()
 
 
+# -----------------------
+# POST เพิ่มคำตอบ (แบบเดี่ยว)
+# -----------------------
+@app.post("/api/answers")
+async def create_answer(answer: Answer):
+    cursor = None
+    try:
+        cursor = conn.cursor()
+
+        # แปลง student_id เป็น string (เพราะใน DB เป็น VARCHAR)
+        student_id_val = str(answer.student_id).strip()
+
+        # ตรวจว่ามี record ซ้ำหรือยัง (student_id + exam_year + group_id)
+        cursor.execute("""
+            SELECT 1 FROM answer
+            WHERE student_id=%s AND exam_year=%s AND group_id=%s
+        """, (student_id_val, answer.exam_year, answer.group_id))
+        if cursor.fetchone():
+            raise HTTPException(status_code=400, detail="คำตอบนี้มีอยู่แล้ว")
+
+        # insert ตาราง answer
+        cursor.execute("""
+            INSERT INTO answer (student_id, group_id, exam_year, essay_text, essay_analysis, status)
+            VALUES (%s, %s, %s, %s, %s, %s)
+        """, (
+            student_id_val,
+            answer.group_id,
+            answer.exam_year,
+            answer.essay_text,
+            answer.essay_analysis,
+            answer.status or "pending"
+        ))
+
+        # insert ตาราง teacher_score (สร้างค่าว่างไว้ก่อน)
+        score_cols_t1 = [f"score_s{i}_t1" for i in range(1, 14)]
+        score_cols_t2 = [f"score_s{i}_t2" for i in range(1, 14)]
+        score_cols = score_cols_t1 + score_cols_t2
+
+        cursor.execute(f"""
+            INSERT INTO teacher_score (student_id, exam_year, group_id, {','.join(score_cols)})
+            VALUES (%s, %s, %s, {','.join(['%s']*len(score_cols))})
+        """, [student_id_val, answer.exam_year, answer.group_id] + [None]*len(score_cols))
+
+        conn.commit()
+        return {"message": "เพิ่มคำตอบสำเร็จ", "student_id": student_id_val}
+
+    except Exception as e:
+        if conn:
+            conn.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        if cursor:
+            cursor.close()
+
+
+
 # GET ดึงคำตอบทั้งหมด
 @app.get("/api/answers-all")
 def get_all_answers():
@@ -632,6 +688,3 @@ def view_score(answer_id: int):
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-
-
-
