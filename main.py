@@ -4,6 +4,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import psycopg2,psycopg2.extras
 from datetime import datetime
+from fastapi.responses import StreamingResponse
+import io, csv
 import bcrypt
 import os
 import re
@@ -30,13 +32,17 @@ app.add_middleware(
 )
 
 # 🌐 Database Connection
+import psycopg2
+
 conn = psycopg2.connect(
-    host="ep-cold-bonus-adrb2tv4-pooler.c-2.us-east-1.aws.neon.tech",
+    host="ep-billowing-hall-a1n0l161-pooler.ap-southeast-1.aws.neon.tech",
     database="neondb",
     user="neondb_owner",
-    password="npg_Hi8SPj1WXrds",
-    port=5432
+    password="npg_12pVAsiPLfxg",
+    port=5432,
+    sslmode="require"
 )
+
 
 # 📌 Schema
 class RegisterForm(BaseModel):
@@ -199,6 +205,8 @@ async def update_user(
     except Exception as e:
         conn.rollback()
         raise HTTPException(status_code=500, detail=f"เกิดข้อผิดพลาด: {str(e)}")
+    
+
 
 # 📌 API: ดึงผู้ใช้งานทั้งหมด
 @app.get("/api/users")
@@ -234,6 +242,7 @@ async def delete_user(username: str):
     except Exception as e:
         conn.rollback()
         raise HTTPException(status_code=500, detail=f"เกิดข้อผิดพลาด: {str(e)}")
+
 
 # 🔹 ดึงปีการศึกษาไม่ซ้ำ
 @app.get("/exam_years", response_model=List[int])
@@ -324,97 +333,110 @@ class Answer(BaseModel):
 # POST เพิ่มคำตอบ(เป็นไฟล์)
 @app.post("/api/answers/upload")
 async def upload_answers(file: UploadFile = File(...)):
-    cursor = None
     try:
-        # ตรวจไฟล์
-        if not (file.filename.endswith(".csv") or file.filename.endswith(".xlsx")):
-            raise HTTPException(status_code=400, detail="รองรับเฉพาะ CSV หรือ Excel")
-
-        # อ่าน DataFrame
+        df = None
         if file.filename.endswith(".csv"):
             df = pd.read_csv(file.file)
-        else:
+        elif file.filename.endswith(".xlsx"):
             df = pd.read_excel(file.file)
-
-        # ตรวจว่ามีคอลัมน์พื้นฐาน
-        base_cols = {"student_id", "group_id", "exam_year", "essay_text", "essay_analysis"}
-        if not base_cols.issubset(df.columns):
-            raise HTTPException(
-                status_code=400,
-                detail=f"ต้องมีคอลัมน์พื้นฐาน: {base_cols}"
-            )
+        else:
+            raise HTTPException(status_code=400, detail="รองรับเฉพาะไฟล์ .csv หรือ .xlsx")
 
         cursor = conn.cursor()
         inserted = 0
 
-        # เตรียมชื่อคอลัมน์คะแนน
-        score_cols_t1 = [f"score_s{i}_t1" for i in range(1, 14)]
-        score_cols_t2 = [f"score_s{i}_t2" for i in range(1, 14)]
-        score_cols = score_cols_t1 + score_cols_t2
-
         for _, row in df.iterrows():
-            # --- ตรวจค่า student_id และ exam_year ---
-            student_id_val = row.get("student_id")
-            if pd.isna(student_id_val) or str(student_id_val).strip() == "":
-                continue  # ข้ามแถวที่ student_id ว่าง
-
-            # ✅ แปลงให้เป็น string ไม่มี .0
-            if isinstance(student_id_val, (int, np.integer)):
-                student_id_val = str(student_id_val)
-            elif isinstance(student_id_val, float):
-                student_id_val = str(int(student_id_val))
-            else:
-                student_id_val = str(student_id_val).strip()
-
-            # ✅ แปลง exam_year ให้เป็น int
-            if pd.isna(row["exam_year"]):
+            sid = row["student_id"]
+            # ถ้าเป็น NaN ให้ข้าม
+            if pd.isna(sid):
                 continue
-            exam_year_val = int(row["exam_year"])
 
-            group_id_val = row["group_id"]
+            # แปลงเป็น str และตัด .0 ถ้าเป็นตัวเลข
+            if isinstance(sid, float) and sid.is_integer():
+                student_id = str(int(sid))
+            else:
+                student_id = str(sid).strip()
 
-            # --- ตรวจว่าแถวนี้มีอยู่แล้วใน DB ---
+            group_id = str(row["group_id"]).strip()
+
+            exam_year_val = row.get("exam_year", None)
+            if pd.isna(exam_year_val):
+                continue  # ข้ามแถวที่ไม่มีปี
+            exam_year = int(exam_year_val)
+
+            # ✅ ตรวจสอบและเพิ่มปี/ชั้นในตาราง exam ถ้ายังไม่มี
             cursor.execute("""
-                SELECT 1 FROM answer
-                WHERE student_id=%s AND exam_year=%s AND group_id=%s
-            """, (student_id_val, exam_year_val, group_id_val))
-            if cursor.fetchone():
-                continue  # มีอยู่แล้ว → ข้าม
+                SELECT 1 FROM exam WHERE exam_year = %s AND group_id = %s
+            """, (exam_year, group_id))
+            if not cursor.fetchone():
+                try:
+                    cursor.execute("""
+                        INSERT INTO exam (exam_year, group_id, exam_name, created_at)
+                        VALUES (%s, %s, %s, %s)
+                    """, (exam_year, group_id, "ภาษาไทย", datetime.now()))
+                except psycopg2.errors.UniqueViolation:
+                    conn.rollback()
+                    cursor.execute("SELECT setval(pg_get_serial_sequence('exam', 'exam_id'), COALESCE(MAX(exam_id), 1), TRUE) FROM exam;")
+                    conn.commit()
 
-            # --- insert ตาราง answer ---
+            # ✅ ตรวจซ้ำใน answer
+            cursor.execute("""
+                SELECT 1 FROM answer WHERE student_id=%s AND exam_year=%s AND group_id=%s
+            """, (student_id, exam_year, group_id))
+            if cursor.fetchone():
+                continue
+
+            # ✅ เพิ่ม answer
             cursor.execute("""
                 INSERT INTO answer (student_id, group_id, exam_year, essay_text, essay_analysis, status)
                 VALUES (%s, %s, %s, %s, %s, %s)
             """, (
-                student_id_val,
-                group_id_val,
-                exam_year_val,
-                str(row["essay_text"]),
-                str(row["essay_analysis"]),
+                student_id,
+                group_id,
+                exam_year,
+                row.get("essay_text", ""),
+                row.get("essay_analysis", ""),
                 "ยังไม่ได้ตรวจ"
             ))
 
-            # --- เตรียมคะแนน ---
-            scores = []
-            for col in score_cols:
-                val = row.get(col, None)
-                if pd.isna(val):
-                    scores.append(None)
-                else:
-                    try:
-                        scores.append(float(val))
-                    except ValueError:
-                        scores.append(None)
+            # ✅ ตรวจว่ามี teacher_score อยู่แล้วไหม
+            cursor.execute("""
+                SELECT 1 FROM teacher_score WHERE student_id=%s AND exam_year=%s AND group_id=%s
+            """, (student_id, exam_year, group_id))
 
-            # --- insert ตาราง teacher_score ---
-            cursor.execute(f"""
-                INSERT INTO teacher_score (
-                    student_id, exam_year, group_id, {','.join(score_cols)}
-                )
-                VALUES (%s, %s, %s, {','.join(['%s']*len(score_cols))})
-            """, [student_id_val, exam_year_val, group_id_val] + scores)
+            if cursor.fetchone():
+                # ✅ มีอยู่แล้ว → update คะแนนครูถ้ามีในไฟล์
+                update_cols, values = [], []
+                for i in range(1, 14):
+                    for t in [1, 2]:
+                        col = f"score_s{i}_t{t}"
+                        if col in row and not pd.isna(row[col]):
+                            update_cols.append(f"{col} = %s")
+                            values.append(row[col])
+                if update_cols:
+                    values += [student_id, exam_year, group_id]
+                    cursor.execute(f"""
+                        UPDATE teacher_score SET {', '.join(update_cols)}
+                        WHERE student_id=%s AND exam_year=%s AND group_id=%s
+                    """, tuple(values))
+            else:
+                # ✅ ยังไม่มี → insert แถวใหม่
+                score_cols_t1 = [f"score_s{i}_t1" for i in range(1, 14)]
+                score_cols_t2 = [f"score_s{i}_t2" for i in range(1, 14)]
+                score_cols = score_cols_t1 + score_cols_t2
 
-            inserted += 1
+                # ✅ อ่านค่าจากไฟล์ ถ้าไม่มีให้ใส่ None
+                score_values = []
+                for col in score_cols:
+                    score_values.append(row[col] if col in row and not pd.isna(row[col]) else None)
+
+                cursor.execute(f"""
+                    INSERT INTO teacher_score (student_id, exam_year, group_id, {','.join(score_cols)})
+                    VALUES (%s, %s, %s, {','.join(['%s']*len(score_cols))})
+                """, [student_id, exam_year, group_id] + score_values)
+
+
+            inserted+=1
 
         conn.commit()
         return {"message": "อัปโหลดสำเร็จ", "inserted": inserted}
@@ -429,19 +451,28 @@ async def upload_answers(file: UploadFile = File(...)):
 
 
 
-# -----------------------
-# POST เพิ่มคำตอบ (แบบเดี่ยว)
-# -----------------------
+
+# ✅ โมเดลใหม่ รองรับคะแนนครูทั้งสองคน
+class AnswerWithScore(BaseModel):
+    student_id: int
+    group_id: str
+    exam_year: int
+    essay_text: str
+    essay_analysis: str
+    status: str
+    scores_t1: Optional[dict] = None  # {"s1":4, "s2":2, ...}
+    scores_t2: Optional[dict] = None  # {"s1":3, "s2":2, ...}
+
+
+# ✅ เพิ่มคำตอบ + คะแนนครู
 @app.post("/api/answers")
-async def create_answer(answer: Answer):
+async def create_answer(answer: AnswerWithScore):
     cursor = None
     try:
         cursor = conn.cursor()
-
-        # แปลง student_id เป็น string (เพราะใน DB เป็น VARCHAR)
         student_id_val = str(answer.student_id).strip()
 
-        # ตรวจว่ามี record ซ้ำหรือยัง (student_id + exam_year + group_id)
+        # 🔍 ตรวจว่ามีข้อมูลนี้ใน answer แล้วหรือยัง
         cursor.execute("""
             SELECT 1 FROM answer
             WHERE student_id=%s AND exam_year=%s AND group_id=%s
@@ -449,7 +480,17 @@ async def create_answer(answer: Answer):
         if cursor.fetchone():
             raise HTTPException(status_code=400, detail="คำตอบนี้มีอยู่แล้ว")
 
-        # insert ตาราง answer
+        # ✅ ตรวจสอบว่ามีปีการศึกษา/ชั้นเรียนในตาราง exam หรือยัง ถ้าไม่มีให้เพิ่ม
+        cursor.execute("""
+            SELECT 1 FROM exam WHERE exam_year = %s AND group_id = %s
+        """, (answer.exam_year, answer.group_id))
+        if not cursor.fetchone():
+            cursor.execute("""
+                INSERT INTO exam (exam_year, group_id, exam_name, created_at)
+                VALUES (%s, %s, %s, %s)
+            """, (answer.exam_year, answer.group_id, "ภาษาไทย", datetime.now()))
+
+        # ✅ บันทึกคำตอบนักเรียน
         cursor.execute("""
             INSERT INTO answer (student_id, group_id, exam_year, essay_text, essay_analysis, status)
             VALUES (%s, %s, %s, %s, %s, %s)
@@ -462,26 +503,127 @@ async def create_answer(answer: Answer):
             answer.status or "ยังไม่ได้ตรวจ"
         ))
 
-        # insert ตาราง teacher_score (สร้างค่าว่างไว้ก่อน)
+        # ✅ เตรียมคอลัมน์คะแนนครู
         score_cols_t1 = [f"score_s{i}_t1" for i in range(1, 14)]
         score_cols_t2 = [f"score_s{i}_t2" for i in range(1, 14)]
         score_cols = score_cols_t1 + score_cols_t2
 
+        # ✅ เตรียมค่าคะแนน
+        values = []
+        for i in range(1, 14):
+            values.append(
+                float(answer.scores_t1.get(f"s{i}", None))
+                if answer.scores_t1 and f"s{i}" in answer.scores_t1 else None
+            )
+        for i in range(1, 14):
+            values.append(
+                float(answer.scores_t2.get(f"s{i}", None))
+                if answer.scores_t2 and f"s{i}" in answer.scores_t2 else None
+            )
+
+        # ✅ บันทึกลงตาราง teacher_score
         cursor.execute(f"""
             INSERT INTO teacher_score (student_id, exam_year, group_id, {','.join(score_cols)})
             VALUES (%s, %s, %s, {','.join(['%s']*len(score_cols))})
-        """, [student_id_val, answer.exam_year, answer.group_id] + [None]*len(score_cols))
+        """, [student_id_val, answer.exam_year, answer.group_id] + values)
 
         conn.commit()
-        return {"message": "เพิ่มคำตอบสำเร็จ", "student_id": student_id_val}
+        return {"message": "เพิ่มคำตอบและคะแนนครูสำเร็จ ✅"}
 
     except Exception as e:
         if conn:
             conn.rollback()
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=f"เกิดข้อผิดพลาด: {str(e)}")
+
     finally:
         if cursor:
             cursor.close()
+
+
+# ✅ ดาวน์โหลด CSV เฉพาะคำตอบที่ตรวจแล้ว (ตามปีการศึกษาและระดับชั้น)
+@app.get("/api/download-checked-csv")
+async def download_checked_csv(exam_year: int, group_id: str):
+    import re
+    try:
+        cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        cursor.execute("""
+            SELECT exam_year, group_id, student_id, score, description
+            FROM answer
+            WHERE status = 'ตรวจแล้ว' AND exam_year = %s AND group_id = %s
+            ORDER BY student_id
+        """, (exam_year, group_id))
+        rows = cursor.fetchall()
+
+        output = io.StringIO()
+        writer = csv.writer(output)
+        header = ["exam_year", "group_id", "student_id", "score"] + [f"s{i}_score" for i in range(1, 14)]
+        writer.writerow(header)
+
+        for row in rows:
+            s_scores = [""] * 13
+            desc_raw = row.get("description")
+
+            if desc_raw:
+                try:
+                    # ✅ บางฐานข้อมูล description อาจเป็น str หรือ dict
+                    desc_json = desc_raw if isinstance(desc_raw, dict) else json.loads(desc_raw)
+
+                    for i in range(1, 14):
+                        key = f"s{i}"
+                        if key not in desc_json:
+                            continue
+                        item = desc_json[key]
+
+                        # เริ่มจากชั้นแรก
+                        score_value = item.get("score", "")
+                        fb = item.get("feedback")
+
+                        # ✅ ตรวจชนิด feedback
+                        fb_json = None
+                        if isinstance(fb, str):
+                            try:
+                                fb_json = json.loads(fb)
+                            except Exception:
+                                # บางครั้ง feedback เป็นข้อความปกติ ไม่ใช่ JSON
+                                fb_json = None
+                        elif isinstance(fb, dict):
+                            fb_json = fb
+
+                        # ✅ พยายามดึงคะแนนจาก feedback ถ้ามี
+                        if fb_json:
+                            for k in ["คะแนนรวม", "คะแนนรวมใจความ", "score_total", "score"]:
+                                if k in fb_json and isinstance(fb_json[k], (int, float)):
+                                    score_value = fb_json[k]
+                                    break
+
+                        # ✅ ถ้ายังไม่มีคะแนน ลองค้นหาใน string JSON
+                        if (score_value == "" or score_value is None) and isinstance(fb, str):
+                            match = re.search(r'"score"\s*:\s*([0-9.]+)', fb)
+                            if match:
+                                score_value = float(match.group(1))
+
+                        s_scores[i - 1] = score_value
+                except Exception as e:
+                    print("⚠️ parse error:", e)
+
+            writer.writerow([
+                row["exam_year"],
+                row["group_id"],
+                row["student_id"],
+                row.get("score", ""),
+                *s_scores
+            ])
+
+        output.seek(0)
+        headers = {
+            "Content-Disposition": f"attachment; filename=checked_scores_{group_id}_{exam_year}.csv",
+            "Content-Type": "text/csv"
+        }
+        return StreamingResponse(iter([output.getvalue()]), headers=headers)
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 
 
 
@@ -567,8 +709,10 @@ async def check_answer(answer_id: int):
     cursor = None
     try:
         cursor = conn.cursor()
+        # ✅ 1. ดึงคำตอบนักเรียนจากฐานข้อมูล
         cursor.execute("SELECT essay_text, essay_analysis FROM answer WHERE answer_id = %s", (answer_id,))
         row = cursor.fetchone()
+
         if not row:
             raise HTTPException(status_code=404, detail="ไม่พบคำตอบ")
 
@@ -576,7 +720,6 @@ async def check_answer(answer_id: int):
 
         # 1. เรียก AI และรับผลลัพธ์เป็น Dictionary
         ai_result_dict = evaluate_single_answer(essay_text, essay_analysis)
-        
         # Log ผลดิบไว้เผื่อตรวจสอบในอนาคต
         print("AI raw result for answer_id", answer_id, ":", json.dumps(ai_result_dict, indent=2, ensure_ascii=False))
 
@@ -607,8 +750,11 @@ async def check_answer(answer_id: int):
                 # ดึงข้อมูลจาก top-level dictionary โดยตรง
                 data = results.get(ai_key, {}) 
                 
-                # AI อาจจะส่ง score มาใน key ชื่อ 'score' หรือ 'คะแนน'
-                score = data.get("score", data.get("คะแนน", 0.0))
+                # ✅ S1 ใช้ key "คะแนนรวมใจความ"
+                if s_key == "s1":
+                    score = data.get("คะแนนรวมใจความ", 0.0)
+                else:
+                    score = data.get("score", data.get("คะแนน", 0.0))
                 
                 # ใช้ 'details' เป็น feedback ถ้ามี, ถ้าไม่มีก็ใช้ object ทั้งหมด
                 feedback_data = data.get("details", data)
@@ -619,9 +765,7 @@ async def check_answer(answer_id: int):
                 }
             
             # ดึงคะแนนรวมทั้งหมด
-            total_score_key = "คะแนนรวมทั้งหมด (30 คะแนน)"
-            total_score = results.get(total_score_key, 0.0)
-
+            total_score = results.get("คะแนนรวมทั้งหมด", 0.0)
             return formatted_desc, float(total_score)
 
         # 3. เรียกใช้ฟังก์ชันแปลงค่า
@@ -653,6 +797,8 @@ async def check_answer(answer_id: int):
     finally:
         if cursor:
             cursor.close()
+
+
 
 
 # -----------------------------

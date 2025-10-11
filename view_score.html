@@ -7,290 +7,290 @@
   <style>
     body {
       font-family: sans-serif;
-      margin: 0;
-      background: #f5f5f5;
-    }
-
-    .navbar {
-      position: sticky;
-      top: 0;
-      background-color: #4c65af;
-      padding: 12px 30px;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-      z-index: 999;
-    }
-
-    .navbar-left {
-      display: flex;
-      gap: 15px;
-    }
-
-    .navbar a {
-      color: #fff;
-      text-decoration: none;
-      margin-right: 20px;
-      font-weight: 500;
-      padding: 8px 15px;
-      border-radius: 5px;
-      transition: all 0.3s ease;
-    }
-
-    .navbar a:hover {
-      background-color: rgba(255, 255, 255, 0.2);
-      color: #ffeb3b;
-    }
-
-    .navbar-right {
-      display: flex;
-      align-items: center;
-    }
-
-    /* ✅ ปรับ container ไม่ให้ชน Navbar */
-    .container {
-      margin-top: 25px;
+      line-height: 1.6;
+      margin: 20px;
+      background-color: #f5f5f5;
     }
 
     .container {
-      max-width: 1000px;
-      margin: 20px auto;
-      background: white;
+      max-width: 1200px;
+      margin: auto;
       padding: 20px;
+      background-color: white;
+      border: 1px solid #ccc;
       border-radius: 8px;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
     }
 
-    h2 {
-      margin-top: 0;
+    h1,
+    h2,
+    h3 {
+      color: #333;
     }
 
-    .filters {
-      display: flex;
-      align-items: center;
-      gap: 10px;
+    .info-section {
+      background-color: #f9f9f9;
+      padding: 15px;
+      border-radius: 4px;
       margin-bottom: 20px;
     }
 
-    select,
-    button {
-      padding: 5px 10px;
+    .info-section p {
+      margin: 8px 0;
+    }
+
+    pre {
+      background: #eee;
+      padding: 15px;
+      border-radius: 4px;
+      overflow-x: auto;
+      white-space: pre-wrap;
+      word-wrap: break-word;
+      max-height: 300px;
+      overflow-y: auto;
     }
 
     table {
-      border-collapse: collapse;
       width: 100%;
-      margin-top: 10px;
+      border-collapse: collapse;
+      margin-top: 20px;
     }
 
     th,
     td {
       border: 1px solid #ddd;
-      padding: 8px;
-      text-align: center;
+      padding: 12px;
+      text-align: left;
       vertical-align: top;
     }
 
     th {
-      background-color: #e0e0e0;
+      background-color: #4c65af;
+      color: white;
+      font-weight: bold;
+    }
+
+    tr:nth-child(even) {
+      background-color: #f9f9f9;
+    }
+
+    /* คอลัมน์ feedback ให้กว้างขึ้น */
+    td:last-child {
+      white-space: pre-wrap;
+      word-wrap: break-word;
+      min-width: 300px;
+      max-width: 500px;
+    }
+
+    .btn-back {
+      padding: 10px 20px;
+      background: #4c65af;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      margin-bottom: 20px;
+      font-size: 16px;
+    }
+
+    .btn-back:hover {
+      background: #3a4a8f;
     }
 
     .score {
       font-weight: bold;
-      color: green;
+      color: #2e7d32;
+      font-size: 18px;
     }
 
     .status {
       font-weight: bold;
+      padding: 4px 12px;
+      border-radius: 4px;
+      display: inline-block;
     }
 
     .status.checked {
-      color: green;
+      background-color: #c8e6c9;
+      color: #2e7d32;
     }
 
     .status.unchecked {
-      color: red;
+      background-color: #ffcdd2;
+      color: #c62828;
     }
 
-    pre {
-      background: #eee;
-      padding: 10px;
+    /* Loading Spinner */
+    .loading {
+      text-align: center;
+      padding: 50px;
+    }
+
+    .spinner {
+      border: 4px solid #f3f3f3;
+      border-top: 4px solid #4c65af;
+      border-radius: 50%;
+      width: 50px;
+      height: 50px;
+      animation: spin 1s linear infinite;
+      margin: 0 auto 20px;
+    }
+
+    @keyframes spin {
+      0% {
+        transform: rotate(0deg);
+      }
+
+      100% {
+        transform: rotate(360deg);
+      }
+    }
+
+    .error-message {
+      color: #c62828;
+      padding: 20px;
+      background-color: #ffcdd2;
       border-radius: 4px;
-      overflow-x: auto;
-      white-space: pre-wrap;
-      word-wrap: break-word;
-      text-align: left;
+      margin: 20px 0;
+    }
+
+    /* Responsive */
+    @media (max-width: 768px) {
+      table {
+        font-size: 14px;
+      }
+
+      th,
+      td {
+        padding: 8px;
+      }
+
+      td:last-child {
+        min-width: 200px;
+      }
+    }
+
+    /* เพิ่มสไตล์สำหรับคะแนน */
+    .score-cell {
+      text-align: center;
+      font-weight: bold;
+    }
+
+    .score-ai {
+      color: #1976d2;
+    }
+
+    .score-teacher {
+      color: #388e3c;
     }
   </style>
 </head>
 
 <body>
-
-  <div class="navbar">
-    <div class="navbar-left">
-      <a href="homepage_user.html">HOME PAGE</a>
-      <a href="check_exam.html">ตรวจข้อสอบ</a>
-      <a href="view_scores.html">ผลคะแนน</a>
-      <a href="profile_user.html">จัดการผู้ใช้งาน</a>
-      <a href="contect_admin.html">ติดต่อแอดมิน</a>
-      <a href="login.html">ออกจากระบบ</a>
+  <div class="container" id="mainContainer">
+    <div class="loading">
+      <div class="spinner"></div>
+      <p>กำลังโหลดข้อมูล...</p>
     </div>
-  </div>
-
-  <div class="container">
-    <h2>ผลการตรวจคำตอบนักเรียน</h2>
-
-    <div class="filters">
-      <label>สถานะ:
-        <select id="statusFilter">
-          <option value="">-- เลือกสถานะ --</option>
-          <option value="ตรวจแล้ว">ตรวจแล้ว</option>
-          <option value="ยังไม่ได้ตรวจ">ยังไม่ได้ตรวจ</option>
-        </select>
-      </label>
-      <label>ปีการศึกษา:
-        <select id="year">
-          <option value="">-- เลือกปีการศึกษา --</option>
-        </select>
-      </label>
-      <label>ระดับชั้นเรียน:
-        <select id="group">
-          <option value="">-- เลือกระดับชั้นเรียน --</option>
-        </select>
-      </label>
-      <label>นักเรียน:
-        <select id="student">
-          <option value="">-- เลือกรหัสนักเรียน --</option>
-        </select>
-      </label>
-      <button onclick="loadStudentData()">ดูผล</button>
-    </div>
-
-    <p><strong>รหัสนักเรียน:</strong> <span id="studentId"></span></p>
-    <p><strong>ชั้นเรียน:</strong> <span id="groupId"></span></p>
-    <p><strong>ปีการศึกษา:</strong> <span id="examYear"></span></p>
-    <p><strong>สถานะ:</strong> <span id="status" class="status"></span></p>
-    <p><strong>คะแนนรวม:</strong> <span id="score" class="score"></span></p>
-
-    <h3>คำตอบนักเรียน</h3>
-    <p><strong>ข้อ 1:</strong></p>
-    <pre id="essayText"></pre>
-    <p><strong>ข้อ 2:</strong></p>
-    <pre id="essayAnalysis"></pre>
-
-    <h3>รายละเอียดการตรวจ (AI Feedback)</h3>
-    <table>
-      <thead>
-        <tr>
-          <th>ข้อ</th>
-          <th>คะแนน</th>
-          <th>คะแนนครู 1</th>
-          <th>คะแนนครู 2</th>
-          <th>รายละเอียดคะแนน</th>
-        </tr>
-      </thead>
-      <tbody id="feedbackTable"></tbody>
-    </table>
   </div>
 
   <script>
-    let allData = [];
+    // ========== ตั้งค่า API ==========
+    const API_BASE_URL = 'http://127.0.0.1:8000';
 
-    // โหลด filters ตอนเปิดหน้า
-    document.addEventListener("DOMContentLoaded", async () => {
-      try {
-        const res = await fetch("http://127.0.0.1:8000/api/answers-all");
-        if (!res.ok) throw new Error("โหลดข้อมูลไม่สำเร็จ");
-        allData = await res.json();
-
-        const statusSelect = document.getElementById("statusFilter");
-        const yearSelect = document.getElementById("year");
-        const groupSelect = document.getElementById("group");
-        const studentSelect = document.getElementById("student");
-
-        // เมื่อเลือกสถานะ
-        statusSelect.addEventListener("change", () => {
-          const filtered = statusSelect.value
-            ? allData.filter(d => d.status === statusSelect.value)
-            : allData;
-
-          // ✅ โหลดปีการศึกษาใหม่
-          const years = [...new Set(filtered.map(item => item.exam_year))];
-          yearSelect.innerHTML = '<option value="">-- เลือกปีการศึกษา --</option>';
-          years.forEach(y => {
-            const opt = document.createElement("option");
-            opt.value = y;
-            opt.textContent = y;
-            yearSelect.appendChild(opt);
-          });
-
-          // ล้าง dropdown อื่น
-          groupSelect.innerHTML = '<option value="">-- เลือกระดับชั้นเรียน --</option>';
-          studentSelect.innerHTML = '<option value="">-- เลือกรหัสนักเรียน --</option>';
-        });
-
-        // เมื่อเลือกปีการศึกษา
-        yearSelect.addEventListener("change", () => {
-          const filtered = allData.filter(d =>
-            (!statusSelect.value || d.status === statusSelect.value) &&
-            d.exam_year == yearSelect.value
-          );
-
-          const groups = [...new Set(filtered.map(d => d.group_id))];
-          groupSelect.innerHTML = '<option value="">-- เลือกระดับชั้นเรียน --</option>';
-          groups.forEach(g => {
-            const opt = document.createElement("option");
-            opt.value = g;
-            opt.textContent = g;
-            groupSelect.appendChild(opt);
-          });
-
-          studentSelect.innerHTML = '<option value="">-- เลือกรหัสนักเรียน --</option>';
-        });
-
-        // เมื่อเลือกชั้นเรียน
-        groupSelect.addEventListener("change", () => {
-          const filtered = allData.filter(d =>
-            (!statusSelect.value || d.status === statusSelect.value) &&
-            d.exam_year == yearSelect.value &&
-            d.group_id == groupSelect.value
-          );
-
-          studentSelect.innerHTML = '<option value="">-- เลือกรหัสนักเรียน --</option>';
-          filtered.forEach(s => {
-            const opt = document.createElement("option");
-            opt.value = s.answer_id;
-            opt.textContent = s.student_id;
-            studentSelect.appendChild(opt);
-          });
-        });
-      } catch (err) {
-        alert(err.message);
+    // ========== ฟังก์ชันย้อนกลับ ==========
+    function goBack() {
+      // หากมีหน้าก่อนหน้าใน history ให้ย้อนกลับ, ถ้าไม่มีให้ไปที่ check_exam.html
+      if (document.referrer) {
+        window.history.back();
+      } else {
+        window.location.href = "check_exam.html";
       }
-    });
+    }
 
+    // ========== ตรวจสอบ answer_id ==========
+    const urlParams = new URLSearchParams(window.location.search);
+    const answerId = urlParams.get("answer_id");
 
-    // โหลดข้อมูลนักเรียน
-    async function loadStudentData() {
-      const answerId = document.getElementById("student").value;
-      if (!answerId) {
-        alert("กรุณาเลือกนักเรียน");
-        return;
-      }
+    if (!answerId) {
+      showError("ไม่พบรหัสคำตอบ", "กรุณาเลือกคำตอบที่ต้องการดูอีกครั้ง");
+    } else {
+      loadAnswer(answerId);
+    }
 
+    function showError(title, message) {
+      document.getElementById('mainContainer').innerHTML = `
+        <button class="btn-back" onclick="goBack()">← ย้อนกลับ</button>
+        <div class="error-message">
+          <h2>⚠️ ${title}</h2>
+          <p>${message}</p>
+        </div>
+      `;
+    }
+
+    async function loadAnswer(answerId) {
       try {
-        const res = await fetch(`http://127.0.0.1:8000/api/view-score/${answerId}`);
-        if (!res.ok) throw new Error("ไม่สามารถโหลดข้อมูลได้");
+        const res = await fetch(`${API_BASE_URL}/api/view-score/${answerId}`);
+
+        if (!res.ok) {
+          const errorData = await res.json().catch(() => null);
+          throw new Error(`HTTP ${res.status}: ${errorData?.detail || 'ไม่สามารถดึงข้อมูลได้'}`);
+        }
+
         const data = await res.json();
 
-        // --- แสดงข้อมูลทั่วไป ---
-        document.getElementById("studentId").textContent = data.student_id;
-        document.getElementById("groupId").textContent = data.group_id;
-        document.getElementById("examYear").textContent = data.exam_year;
-        document.getElementById("status").textContent = data.status;
-        document.getElementById("status").className = "status " + (data.status === 'ตรวจแล้ว' ? 'checked' : 'unchecked');
-        document.getElementById("essayText").textContent = data.essay_text || "";
-        document.getElementById("essayAnalysis").textContent = data.essay_analysis || "";
+        // แสดงผล Log เพื่อตรวจสอบ
+        console.log("=== ข้อมูลทั้งหมดจาก API ===");
+        console.log("Data received:", data);
+        console.log("description (raw):", data.description);
+        console.log("teacher_scores (raw):", data.teacher_scores);
+
+        // สร้างโครงสร้างหน้าเว็บหลัก
+        const container = document.getElementById('mainContainer');
+        container.innerHTML = `
+          <button class="btn-back" onclick="goBack()">← ย้อนกลับ</button>
+          <h1>📋 ผลการตรวจคำตอบนักเรียน</h1>
+          <div class="info-section">
+            <h2>ข้อมูลนักเรียน</h2>
+            <p><strong>รหัสนักเรียน:</strong> <span id="studentId">-</span></p>
+            <p><strong>ชั้นเรียน:</strong> <span id="groupId">-</span></p>
+            <p><strong>ปีการศึกษา:</strong> <span id="examYear">-</span></p>
+            <p><strong>สถานะ:</strong> <span id="status" class="status">-</span></p>
+            <p><strong>คะแนนรวม:</strong> <span id="totalScoreAI" class="score">0</span></p>
+          </div>
+          <h2>📝 คำตอบนักเรียน</h2>
+          <div class="info-section">
+            <strong>ข้อ 1: จงเขียนย่อความจากบทอ่าน</strong>
+            <pre id="essayText">กำลังโหลด...</pre>
+            <strong style="display:block; margin-top:20px;">ข้อ 2: วิเคราะห์/แสดงความคิดเห็น</strong>
+            <pre id="essayAnalysis">กำลังโหลด...</pre>
+          </div>
+          <h3>📊 รายละเอียดการตรวจ</h3>
+          <table>
+            <thead>
+              <tr>
+                <th style="width: 350px;">เกณฑ์การตรวจ</th>
+                <th class="score-cell" style="width: 100px;">คะแนน</th>
+                <th class="score-cell" style="width: 100px;">ครู 1</th>
+                <th class="score-cell" style="width: 100px;">ครู 2</th>
+                <th>รายละเอียด (Feedback)</th>
+              </tr>
+            </thead>
+            <tbody id="feedbackTable">
+              <tr><td colspan="5" style="text-align:center;">กำลังโหลด...</td></tr>
+            </tbody>
+          </table>
+        `;
+
+        // กรอกข้อมูลทั่วไป
+        document.getElementById("studentId").textContent = data.student_id || "-";
+        document.getElementById("groupId").textContent = data.group_id || "-";
+        document.getElementById("examYear").textContent = data.exam_year || "-";
+        const statusElement = document.getElementById("status");
+        statusElement.textContent = data.status || "ยังไม่ตรวจ";
+        statusElement.className = "status " + (data.status === 'ตรวจแล้ว' ? 'checked' : 'unchecked');
+        document.getElementById("essayText").textContent = data.essay_text || "ไม่มีข้อมูล";
+        document.getElementById("essayAnalysis").textContent = data.essay_analysis || "ไม่มีข้อมูล";
 
         // ========== แปลงข้อมูล JSON ==========
         let parsedDescription = {};
@@ -303,10 +303,9 @@
           console.error("❌ Error parsing description:", e);
         }
 
-        // 🔥 แก้ไขคะแนนที่ผิดพลาด (ดึงจาก feedback)
+        // 🔥 เพิ่มโค้ดแก้ไขคะแนนตรงนี้
         Object.keys(parsedDescription).forEach(key => {
           const item = parsedDescription[key];
-
           if (item.score === 0 && item.feedback) {
             try {
               const feedbackObj = typeof item.feedback === 'string' ? JSON.parse(item.feedback) : item.feedback;
@@ -332,6 +331,7 @@
           }
         });
 
+        // ต่อด้วยโค้ดเดิม...
         let teacherScores = {};
         try {
           if (data.teacher_scores) {
@@ -350,12 +350,13 @@
           }
         });
 
-        console.log("📊 คะแนนรวม AI:", totalAIScore);
-        document.getElementById("score").textContent = totalAIScore.toFixed(1);
+        console.log("📊 คะแนนรวม:", totalAIScore);
+        document.getElementById("totalScoreAI").textContent = totalAIScore.toFixed(1);
+
 
         // ========== สร้างตาราง ==========
         const feedbackTable = document.getElementById("feedbackTable");
-        feedbackTable.innerHTML = "";
+        feedbackTable.innerHTML = ""; // เคลียร์ตารางเก่า
 
         const criteriaOrder = [
           { type: 'header', text: '--- ข้อที่ 1: การเขียนย่อความ (10 คะแนน) ---' },
@@ -364,7 +365,7 @@
           { type: 'header', text: '--- ข้อที่ 2: การแสดงความคิดเห็น (20 คะแนน) ---' },
           "s7", "s8", "s9", "s10", "s11", "s12", "s13",
           { type: 'summary', part: 2 },
-          { type: 'grand_total' }  // 🔥 เพิ่มคะแนนรวมทั้งหมด
+          { type: 'grand_total' }  // 🔥 เพิ่มบรรทัดนี้
         ];
 
         const criteriaNameMapping = {
@@ -395,22 +396,21 @@
               const headerRow = document.createElement("tr");
               headerRow.innerHTML = `<td colspan="5" style="background-color: #e9ecef; font-weight: bold; text-align: center;">${item.text}</td>`;
               feedbackTable.appendChild(headerRow);
-            }
-            else if (item.type === 'summary') {
+            } else if (item.type === 'summary') {
               const part = `part${item.part}`;
               const summaryRow = document.createElement("tr");
               summaryRow.style.background = "#f0f8ff";
               summaryRow.style.fontWeight = "bold";
               summaryRow.innerHTML = `
-            <td>คะแนนรวมข้อที่ ${item.part}</td>
-            <td class="score-cell score-ai">${totals.ai[part].toFixed(1)}</td>
-            <td class="score-cell score-teacher">${totals.teacher1[part] > 0 ? totals.teacher1[part].toFixed(1) : '-'}</td>
-            <td class="score-cell score-teacher">${totals.teacher2[part] > 0 ? totals.teacher2[part].toFixed(1) : '-'}</td>
-            <td>-</td>
-          `;
+                    <td>คะแนนรวมข้อที่ ${item.part}</td>
+                    <td class="score-cell score-ai">${totals.ai[part].toFixed(1)}</td>
+                    <td class="score-cell score-teacher">${totals.teacher1[part] > 0 ? totals.teacher1[part].toFixed(1) : '-'}</td>
+                    <td class="score-cell score-teacher">${totals.teacher2[part] > 0 ? totals.teacher2[part].toFixed(1) : '-'}</td>
+                    <td>-</td>
+                `;
               feedbackTable.appendChild(summaryRow);
             }
-            // 🔥 เพิ่มคะแนนรวมทั้งหมด
+            // 🔥 เพิ่มส่วนนี้
             else if (item.type === 'grand_total') {
               const grandTotalRow = document.createElement("tr");
               grandTotalRow.style.background = "#d4edda";
@@ -422,12 +422,12 @@
               const totalT2 = totals.teacher2.part1 + totals.teacher2.part2;
 
               grandTotalRow.innerHTML = `
-            <td style="text-align: center; background-color: #28a745; color: white;">🏆 คะแนนรวมทั้งหมด (30 คะแนน)</td>
-            <td class="score-cell" style="background-color: #d1ecf1; color: #004085; font-size: 18px;">${totalAI.toFixed(1)}</td>
-            <td class="score-cell" style="background-color: #d4edda; color: #155724; font-size: 18px;">${totalT1 > 0 ? totalT1.toFixed(1) : '-'}</td>
-            <td class="score-cell" style="background-color: #d4edda; color: #155724; font-size: 18px;">${totalT2 > 0 ? totalT2.toFixed(1) : '-'}</td>
-            <td style="background-color: #d4edda;">-</td>
-          `;
+        <td style="text-align: center; background-color: #28a745; color: white;">🏆 คะแนนรวมทั้งหมด (30 คะแนน)</td>
+        <td class="score-cell" style="background-color: #d1ecf1; color: #004085; font-size: 18px;">${totalAI.toFixed(1)}</td>
+        <td class="score-cell" style="background-color: #d4edda; color: #155724; font-size: 18px;">${totalT1 > 0 ? totalT1.toFixed(1) : '-'}</td>
+        <td class="score-cell" style="background-color: #d4edda; color: #155724; font-size: 18px;">${totalT2 > 0 ? totalT2.toFixed(1) : '-'}</td>
+        <td style="background-color: #d4edda;">-</td>
+      `;
               feedbackTable.appendChild(grandTotalRow);
             }
             return;
@@ -452,34 +452,38 @@
             if (teacher2 !== '-') totals.teacher2[part] += parseFloat(teacher2);
 
             let details = "-";
-            if (criteriaData.feedback) {
-              try {
-                const feedbackObj = JSON.parse(criteriaData.feedback);
-                details = JSON.stringify(feedbackObj, null, 2);
-              } catch (e) {
-                details = criteriaData.feedback;
+              if (criteriaData.feedback || criteriaData.details) {
+                try {
+                  const feedbackObj = typeof criteriaData.feedback === "string"
+                    ? JSON.parse(criteriaData.feedback)
+                    : criteriaData.feedback || criteriaData.details;
+
+                  details = JSON.stringify(feedbackObj, null, 2);
+                } catch (e) {
+                  details = JSON.stringify(criteriaData.feedback || criteriaData.details, null, 2);
+                }
               }
-            }
 
             const row = document.createElement("tr");
             row.innerHTML = `
-          <td>${criteriaName}</td>
-          <td class="score-cell score-ai">${aiScore.toFixed(1)}</td>
-          <td class="score-cell score-teacher">${teacher1}</td>
-          <td class="score-cell score-teacher">${teacher2}</td>
-          <td><pre>${details}</pre></td>
-        `;
+                <td>${criteriaName}</td>
+                <td class="score-cell score-ai">${aiScore.toFixed(1)}</td>
+                <td class="score-cell score-teacher">${teacher1}</td>
+                <td class="score-cell score-teacher">${teacher2}</td>
+                <td><pre>${details}</pre></td>
+            `;
             feedbackTable.appendChild(row);
+          } else {
+            console.warn(`⚠️ ไม่มีข้อมูลสำหรับเกณฑ์: ${sKey}`);
           }
         });
 
       } catch (error) {
         console.error("❌ เกิดข้อผิดพลาด:", error);
-        alert("เกิดข้อผิดพลาด: " + error.message);
+        showError("เกิดข้อผิดพลาด", error.message || "ไม่สามารถโหลดข้อมูลได้");
       }
     }
   </script>
 </body>
 
 </html>
-
