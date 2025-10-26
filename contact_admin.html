@@ -36,6 +36,10 @@
             border-radius: 8px;
             resize: vertical;
         }
+        input[readonly] {
+            background-color: #f1f1f1;
+            cursor: not-allowed;
+        }
         input[type="submit"] {
             background-color: #3b5bdb;
             color: white;
@@ -55,10 +59,10 @@
             <h2>ติดต่อผู้ดูแลระบบ</h2>
             <form id="contactForm">
                 <label>ชื่อของคุณ</label>
-                <input type="text" name="name" required>
+                <input type="text" id="fullname" name="name" readonly>
 
-                <label>username</label>
-                <input type="text" name="user" required>
+                <label>ชื่อผู้ใช้ (Username)</label>
+                <input type="text" id="username" name="user" readonly>
 
                 <label>ข้อความ</label>
                 <textarea name="message" rows="5" required></textarea>
@@ -69,6 +73,29 @@
     </div>
 
     <script>
+        // ✅ โหลดข้อมูลผู้ใช้จาก localStorage และ API
+        async function loadUserInfo() {
+            const username = localStorage.getItem("username");
+            if (!username) {
+                alert("กรุณาเข้าสู่ระบบก่อนติดต่อผู้ดูแลระบบ");
+                window.location.href = "login.html";
+                return;
+            }
+
+            try {
+                const res = await fetch(`http://127.0.0.1:8000/api/userinfo?username=${username}`);
+                const data = await res.json();
+                document.getElementById("fullname").value = data.fullname;
+                document.getElementById("username").value = data.username;
+            } catch (err) {
+                console.error("โหลดข้อมูลผู้ใช้ล้มเหลว:", err);
+            }
+        }
+
+        // ✅ โหลดข้อมูลเมื่อเปิดหน้า
+        loadUserInfo();
+
+        // ✅ เมื่อกดส่งฟอร์ม
         document.getElementById("contactForm").addEventListener("submit", async (e) => {
             e.preventDefault();
 
@@ -78,9 +105,7 @@
             try {
                 const res = await fetch("http://127.0.0.1:8000/api/contact-admin", {
                     method: "POST", 
-                    headers: {
-                        "Content-Type": "application/json"
-                    },
+                    headers: { "Content-Type": "application/json" },
                     body: JSON.stringify(data)
                 });
 
@@ -88,7 +113,7 @@
                 alert(result.message);
 
                 if (res.ok) {
-                    window.location.href = "homepage_user.html"; // กลับหน้าหลักเมื่อสำเร็จ
+                    window.location.href = "homepage_user.html";
                 }
 
             } catch (error) {

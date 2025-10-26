@@ -317,6 +317,39 @@ async def delete_feedback(contact_id: int):
         return {"message": "ลบข้อความเรียบร้อย"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+    
+# 📌 Schema (ใหม่)
+class ContactForm(BaseModel):
+    username: str
+    message: str
+
+
+# ✉️ Contact Admin API (ใหม่)
+@app.post("/api/contact-admin")
+async def admin_contact(data: ContactForm):
+    try:
+        cur = conn.cursor()
+
+        # ✅ ดึง fullname จากตาราง users โดยใช้ username
+        cur.execute("SELECT fullname FROM users WHERE username = %s", (data.username,))
+        user_row = cur.fetchone()
+        if not user_row:
+            raise HTTPException(status_code=404, detail="ไม่พบผู้ใช้งานนี้")
+
+        fullname = user_row[0]
+
+        # ✅ บันทึกข้อความลงตาราง admin_contact
+        cur.execute("""
+            INSERT INTO admin_contact (name, username, message, created_at)
+            VALUES (%s, %s, %s, %s)
+        """, (fullname, data.username, data.message, datetime.now()))
+        
+        conn.commit()
+        return {"message": f"ส่งข้อความถึงผู้ดูแลระบบเรียบร้อยแล้วโดย {fullname}"}
+    
+    except Exception as e:
+        conn.rollback()
+        raise HTTPException(status_code=500, detail=f"เกิดข้อผิดพลาด: {str(e)}")
 
 # ----------------- Pydantic Model -----------------
 class Answer(BaseModel):

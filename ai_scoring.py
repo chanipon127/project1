@@ -1797,7 +1797,6 @@ def evaluate_single_answer(answer_text, essay_analysis):
         mind_score = {
             "cosine_similarity": round(best_score, 3), 
             **mind_score, "คะแนนรวมใจความ": mind_total, 
-            "bert_score": round(best_score, 3),
             "message": "ใจความเป็น 0 หรือ cosine >= 0.9 → S1–S6 = 0 ทั้งหมด"
         }
         ordering1_score, ordering1_details = 0, {}
@@ -1913,7 +1912,7 @@ def evaluate_single_answer(answer_text, essay_analysis):
     # ✅ คืนค่า JSON-safe
     # ---------------------------
     return convert_numpy_to_python({
-        "ข้อที่ 1 - ใจความสำคัญ": {"cosine_similarity": round(best_score, 3), **mind_score, "คะแนนรวมใจความ": mind_total, "bert_score": round(best_score, 3)},
+        "ข้อที่ 1 - ใจความสำคัญ": {"cosine_similarity": round(best_score, 3), **mind_score, "คะแนนรวมใจความ": mind_total,},
         "ข้อที่ 1 - การเรียงลำดับและเชื่อมโยงความคิด": {"score": ordering1_score, "details": ordering1_details},
         "ข้อที่ 1 - ความถูกต้องตามหลักการเขียนย่อความ": {"score": summary1_score, **summary1_details},
         "ข้อที่ 1 - การสะกดคำ": {"score": spelling_score, "details": spelling_res},
